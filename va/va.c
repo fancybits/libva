@@ -48,6 +48,10 @@
 #define CHECK_MAXIMUM(s, ctx, var) if (!va_checkMaximum(ctx->max_##var, #var)) s = VA_STATUS_ERROR_UNKNOWN;
 #define CHECK_STRING(s, ctx, var) if (!va_checkString(ctx->str_##var, #var)) s = VA_STATUS_ERROR_UNKNOWN;
 
+#ifdef STATIC_DRIVER
+extern VADriverInit __vaDriverInit_0_39;
+#endif
+
 /*
  * read a config "env" for libva.conf or from environment setting
  * liva.conf has higher priority
@@ -254,6 +258,7 @@ static VAStatus va_openDriver(VADisplay dpy, char *driver_name)
 {
     VADriverContextP ctx = CTX(dpy);
     VAStatus vaStatus = VA_STATUS_ERROR_UNKNOWN;
+#ifndef STATIC_DRIVER
     char *search_path = NULL;
     char *saveptr;
     char *driver_dir;
@@ -330,6 +335,9 @@ static VAStatus va_openDriver(VADisplay dpy, char *driver_name)
                                 driver_path, init_func_s);
                 dlclose(handle);
             } else {
+#else
+                VADriverInit init_func = (VADriverInit)&__vaDriverInit_0_39;
+#endif
                 struct VADriverVTable *vtable = ctx->vtable;
                 struct VADriverVTableVPP *vtable_vpp = ctx->vtable_vpp;
 
@@ -403,6 +411,10 @@ static VAStatus va_openDriver(VADisplay dpy, char *driver_name)
                     CHECK_VTABLE(vaStatus, ctx, SetDisplayAttributes);
                 }
                 if (VA_STATUS_SUCCESS != vaStatus) {
+#ifdef STATIC_DRIVER
+                    va_errorMessage("driver init failed\n");
+		}
+#else
                     va_errorMessage("%s init failed\n", driver_path);
                     dlclose(handle);
                 }
@@ -418,6 +430,7 @@ static VAStatus va_openDriver(VADisplay dpy, char *driver_name)
     }
     
     free(search_path);    
+#endif
     
     return vaStatus;
 }
@@ -645,11 +658,15 @@ VAStatus vaTerminate (
   CHECK_DISPLAY(dpy);
   old_ctx = CTX(dpy);
 
+#ifdef STATIC_DRIVER
+  vaStatus = old_ctx->vtable->vaTerminate(old_ctx);
+#else
   if (old_ctx->handle) {
       vaStatus = old_ctx->vtable->vaTerminate(old_ctx);
       dlclose(old_ctx->handle);
       old_ctx->handle = NULL;
   }
+#endif
   free(old_ctx->vtable);
   old_ctx->vtable = NULL;
   free(old_ctx->vtable_vpp);
