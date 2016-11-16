@@ -444,8 +444,12 @@ VAPrivFunc vaGetLibFunc(VADisplay dpy, const char *func)
 
     if (NULL == ctx->handle)
         return NULL;
-        
+
+#ifdef STATIC_DRIVER
+    return NULL;
+#else
     return (VAPrivFunc) dlsym(ctx->handle, func);
+#endif
 }
 
 
