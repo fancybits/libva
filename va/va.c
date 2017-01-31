@@ -49,7 +49,7 @@
 #define CHECK_STRING(s, ctx, var) if (!va_checkString(ctx->str_##var, #var)) s = VA_STATUS_ERROR_UNKNOWN;
 
 #ifdef STATIC_DRIVER
-extern VADriverInit __vaDriverInit_0_39;
+extern VADriverInit __vaDriverInit_0_40;
 #endif
 
 /*
