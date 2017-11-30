@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007 Intel Corporation. All Rights Reserved.
+ * Copyright (c) 2017 Intel Corporation. All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the
@@ -8,35 +8,40 @@
  * distribute, sub license, and/or sell copies of the Software, and to
  * permit persons to whom the Software is furnished to do so, subject to
  * the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice (including the
  * next paragraph) shall be included in all copies or substantial portions
  * of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
  * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT.
- * IN NO EVENT SHALL PRECISION INSIGHT AND/OR ITS SUPPLIERS BE LIABLE FOR
+ * IN NO EVENT SHALL INTEL AND/OR ITS SUPPLIERS BE LIABLE FOR
  * ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#define TEST_DESCRIPTION	"Initialize & Terminate"
 
-#include "test_common.c"
+#ifndef _VA_STR_H_
+#define _VA_STR_H_
 
-void pre()
-{
+#include <va/va.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+const char *vaProfileStr(VAProfile profile);
+
+const char *vaEntrypointStr(VAEntrypoint entrypoint);
+
+const char *vaConfigAttribTypeStr(VAConfigAttribType configAttribType);
+
+const char *vaBufferTypeStr(VABufferType bufferType);
+
+#ifdef __cplusplus
 }
+#endif
 
-void post()
-{
-}
-
-void test()
-{
-  test_init();
-
-  test_terminate();
-}
+#endif /* _VA_STR_H_ */

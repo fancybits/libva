@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007 Intel Corporation. All Rights Reserved.
+ * Copyright (c) 2017 Intel Corporation. All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the
@@ -8,11 +8,11 @@
  * distribute, sub license, and/or sell copies of the Software, and to
  * permit persons to whom the Software is furnished to do so, subject to
  * the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice (including the
  * next paragraph) shall be included in all copies or substantial portions
  * of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
  * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
  * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT.
@@ -21,42 +21,26 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#define Display unsigned int
-Display *dpy;
-VADisplay va_dpy;
-VAStatus va_status;
-VAProfile *profiles ;
-int major_version, minor_version;
 
-void test_init()
-{
-    dpy = (Display*)malloc(sizeof(Display));
-    *(dpy) = 0x18c34078;
-    ASSERT( dpy );
-    status("malloc Display: dpy = %08x\n", dpy);
+#ifndef VA_INTERNAL_H
+#define VA_INTERNAL_H
 
-    va_dpy = vaGetDisplay(dpy);
-    ASSERT( va_dpy );  
-    status("vaGetDisplay: va_dpy = %08x\n", va_dpy);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-    va_status = vaInitialize(va_dpy, &major_version, &minor_version);
-    ASSERT( VA_STATUS_SUCCESS == va_status );
-    status("vaInitialize: major = %d minor = %d\n", major_version, minor_version);
+#define CTX(dpy) (((VADisplayContextP)dpy)->pDriverContext)
+#define CHECK_DISPLAY(dpy) if( !vaDisplayIsValid(dpy) ) { return VA_STATUS_ERROR_INVALID_DISPLAY; }
+
+void va_errorMessage(VADisplay dpy, const char *msg, ...);
+void va_infoMessage(VADisplay dpy, const char *msg, ...);
+
+int  va_parseConfig(char *env, char *env_value);
+
+VADisplayContextP va_newDisplayContext(void);
+
+#ifdef __cplusplus
 }
+#endif
 
-void test_terminate()
-{
-    va_status = vaTerminate(va_dpy);
-    ASSERT( VA_STATUS_SUCCESS == va_status );
-    status("vaTerminate\n");
-
-    free(dpy);
-    status("free Display\n");
-
-    if (profiles)
-    {
-        free(profiles);
-        profiles = NULL;
-    }
-}
-
+#endif /* VA_INTERNAL_H */

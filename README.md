@@ -1,9 +1,8 @@
 [![Stories in Ready](https://badge.waffle.io/01org/libva.png?label=ready&title=Ready)](http://waffle.io/01org/libva)
 [![Build Status](https://travis-ci.org/01org/libva.svg?branch=master)](https://travis-ci.org/01org/libva)
-[![Coverage Status](https://coveralls.io/repos/github/01org/libva/badge.svg?branch=master)](https://coveralls.io/github/01org/libva?branch=master)
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/11605/badge.svg)](https://scan.coverity.com/projects/01org-libva)
 
-#Libva Project
+# Libva Project
 
 Libva is an implementation for VA-API (Video Acceleration API)
 
@@ -30,3 +29,10 @@ libva](http://01org.github.io/libva/)
 The libva development team can be reached via our [mailing
 list](https://lists.01.org/mailman/listinfo/intel-vaapi-media) and on IRC
 in channel ##intel-media on [Freenode](https://freenode.net/kb/answer/chat).
+
+We also use [#Slack](https://slack.com) and host [VAAPI Media Slack
+Team](https://intel-media.slack.com).  You can signup by submitting your email 
+address to our [Slack Team invite page](https://slack-join-intel-media.herokuapp.com).
+
+Slack complements our other means of communication.  Pick the one that works
+best for you!

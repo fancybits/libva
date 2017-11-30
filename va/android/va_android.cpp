@@ -26,6 +26,7 @@
 #include "sysdeps.h"
 #include "va.h"
 #include "va_backend.h"
+#include "va_internal.h"
 #include "va_trace.h"
 #include "va_fool.h"
 #include "va_android.h"
@@ -41,7 +42,7 @@
 
 
 #define CHECK_SYMBOL(func) { if (!func) printf("func %s not found\n", #func); return VA_STATUS_ERROR_UNKNOWN; }
-#define DEVICE_NAME "/dev/dri/card0"
+#define DEVICE_NAME "/dev/dri/renderD128"
 
 static int open_device (char *dev_name)
 {
@@ -135,13 +136,11 @@ VADisplay vaGetDisplay (
         /* create new entry */
         VADriverContextP pDriverContext = 0;
         struct drm_state *drm_state = 0;
-        pDisplayContext = (VADisplayContextP)calloc(1, sizeof(*pDisplayContext));
+        pDisplayContext = va_newDisplayContext();
         pDriverContext  = (VADriverContextP)calloc(1, sizeof(*pDriverContext));
         drm_state       = (struct drm_state*)calloc(1, sizeof(*drm_state));
         if (pDisplayContext && pDriverContext && drm_state)
         {
-            pDisplayContext->vadpy_magic = VA_DISPLAY_MAGIC;          
-
             pDriverContext->native_dpy       = (void *)native_dpy;
             pDriverContext->display_type     = VA_DISPLAY_ANDROID;
             pDisplayContext->pDriverContext  = pDriverContext;
@@ -165,13 +164,10 @@ VADisplay vaGetDisplay (
     return dpy;
 }
 
-#define CTX(dpy) (((VADisplayContextP)dpy)->pDriverContext)
-#define CHECK_DISPLAY(dpy) if( !vaDisplayIsValid(dpy) ) { return VA_STATUS_ERROR_INVALID_DISPLAY; }
-
 
 extern "C"  {
-    extern int fool_postp; /* do nothing for vaPutSurface if set */
-    extern int trace_flag; /* trace vaPutSurface parameters */
+    extern int va_fool_postp; /* do nothing for vaPutSurface if set */
+    extern int va_trace_flag; /* trace vaPutSurface parameters */
 
     void va_TracePutSurface (
         VADisplay dpy,
@@ -194,7 +190,7 @@ extern "C"  {
 VAStatus vaPutSurface (
     VADisplay dpy,
     VASurfaceID surface,
-    sp<ISurface> draw, /* Android Surface/Window */
+    sp<ANativeWindow> draw, /* Android Native Window */
     short srcx,
     short srcy,
     unsigned short srcw,
@@ -210,7 +206,7 @@ VAStatus vaPutSurface (
 {
     VADriverContextP ctx;
 
-    if (fool_postp)
+    if (va_fool_postp)
         return VA_STATUS_SUCCESS;
 
     if (draw == NULL)

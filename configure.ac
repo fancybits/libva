@@ -21,13 +21,13 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # VA-API version
-# - increment major for any ABI change (which shall not occur!)
+# - increment major for any ABI change
 # - increment minor for any interface change (e.g. new/modified function)
 # - increment micro for any other change (new flag, new codec definition, etc.)
 # - reset micro version to zero when minor version is incremented
 # - reset minor version to zero when major version is incremented
-m4_define([va_api_major_version], [0])
-m4_define([va_api_minor_version], [40])
+m4_define([va_api_major_version], [1])
+m4_define([va_api_minor_version], [0])
 m4_define([va_api_micro_version], [0])
 
 m4_define([va_api_version],
@@ -41,9 +41,9 @@ m4_define([va_api_version],
 # - increment micro for any library release
 # - reset micro version to zero when VA-API major or minor version is changed
 m4_define([libva_major_version], [m4_eval(va_api_major_version + 1)])
-m4_define([libva_minor_version], [m4_eval(va_api_minor_version - 32)])
+m4_define([libva_minor_version], [m4_eval(va_api_minor_version)])
 m4_define([libva_micro_version], [0])
-m4_define([libva_pre_version],   [1])
+m4_define([libva_pre_version],   [0])
 
 m4_define([libva_version],
           [libva_major_version.libva_minor_version.libva_micro_version])
@@ -78,10 +78,16 @@ m4_define([libva_lt_age],
 m4_define([libdrm_version], [2.4])
 
 # Wayland minimum version number
-m4_define([wayland_api_version], [1.0.0])
+# 1.11.0 for wl_proxy_create_wrapper
+m4_define([wayland_api_version], [1.11.0])
 
 AC_PREREQ(2.57)
-AC_INIT([libva], [libva_version], [waldo.bastian@intel.com], libva)
+AC_INIT([libva],
+        [libva_version],
+        [https://github.com/01org/libva/issues/new],
+        [libva],
+        [https://github.com/01org/libva])
+
 AC_CONFIG_SRCDIR([Makefile.am])
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([dist-bzip2])
@@ -130,29 +136,23 @@ AC_ARG_ENABLE(drm,
 
 AC_ARG_ENABLE(x11,
     [AC_HELP_STRING([--enable-x11],
-                    [build with VA/X11 API support @<:@default=yes@:>@])],
-    [], [enable_x11="yes"])
+                    [build with VA/X11 API support @<:@default=auto@:>@])],
+    [], [enable_x11="auto"])
 
 AC_ARG_ENABLE(glx,
     [AC_HELP_STRING([--enable-glx],
-                    [build with VA/GLX API support @<:@default=yes@:>@])],
-    [], [enable_glx="yes"])
-
-AC_ARG_ENABLE(egl,
-    [AC_HELP_STRING([--enable-egl],
-                    [build with VA/EGL API support @<:@default=yes@:>@])],
-    [], [enable_egl="yes"])
+                    [build with VA/GLX API support @<:@default=auto@:>@])],
+    [], [enable_glx="auto"])
 
 AC_ARG_ENABLE([wayland],
     [AC_HELP_STRING([--enable-wayland],
-                    [build with VA/Wayland API support @<:@default=yes@:>@])],
-    [], [enable_wayland="yes"])
+                    [build with VA/Wayland API support @<:@default=auto@:>@])],
+    [], [enable_wayland="auto"])
 
-AC_ARG_ENABLE(dummy-driver,
-    [AC_HELP_STRING([--enable-dummy-driver],
-                    [build dummy video driver @<:@default=yes@:>@])],
-    [], [enable_dummy_driver="yes"])
-AM_CONDITIONAL(BUILD_DUMMY_DRIVER, test x$enable_dummy_driver = xyes)
+AC_ARG_ENABLE([va-messaging],
+    [AC_HELP_STRING([--enable-va-messaging],
+                    [build with va info and error messaging @<:@default=yes@:>@])],
+    [], [enable_va_messaging="yes"])
 
 AC_ARG_WITH(drivers-path,
     [AC_HELP_STRING([--with-drivers-path=[[path]]],
@@ -167,6 +167,7 @@ AC_PROG_LIBTOOL
 AC_PROG_CC
 AC_PROG_CXX
 AM_PROG_CC_C_O
+AC_PROG_SED
 PKG_PROG_PKG_CONFIG
 
 AC_HEADER_STDC
@@ -180,6 +181,11 @@ if test "$enable_docs" = "yes"; then
     fi
 fi
 AM_CONDITIONAL(ENABLE_DOCS, test "$enable_docs" = "yes")
+
+# Check for va messaging
+if test "$enable_va_messaging" = "yes"; then
+    AC_DEFINE([ENABLE_VA_MESSAGING], [1], [Defined to 1 if va messaging is needed])
+fi
 
 # Check for __attribute__((visibility()))
 AC_CACHE_CHECK([whether __attribute__((visibility())) is supported],
@@ -217,11 +223,13 @@ AM_CONDITIONAL(USE_DRM, test "$USE_DRM" = "yes")
 
 # Check for X11
 USE_X11="no"
-if test "$enable_x11" = "yes"; then
-    USE_X11="yes"
-    PKG_CHECK_MODULES([X11],    [x11],    [:], [USE_X11="no"])
-    PKG_CHECK_MODULES([XEXT],   [xext],   [:], [USE_X11="no"])
-    PKG_CHECK_MODULES([XFIXES], [xfixes], [:], [USE_X11="no"])
+if test "x$enable_x11" != "xno"; then
+    PKG_CHECK_MODULES([X11],    [x11 xext xfixes],    [USE_X11="yes"], [:])
+
+    if test "x$USE_X11" = "xno" -a "x$enable_x11" = "xyes"; then
+       AC_MSG_ERROR([VA/X11 explicitly enabled, however $X11_PKG_ERRORS])
+    fi
+
     if test "$USE_X11" = "yes"; then
         AC_DEFINE([HAVE_VA_X11], [1], [Defined to 1 if VA/X11 API is built])
     fi
@@ -230,7 +238,12 @@ AM_CONDITIONAL(USE_X11, test "$USE_X11" = "yes")
 
 # Check for GLX
 USE_GLX="no"
-if test "$USE_X11:$enable_glx" = "yes:yes"; then
+
+if test "$USE_X11:$enable_glx" = "no:yes"; then
+   AC_MSG_ERROR([VA/GLX explicitly enabled, but VA/X11 isn't built])
+fi
+
+if test "$USE_X11:$enable_glx" != "yes:no"; then
     PKG_CHECK_MODULES([GLX], [gl x11], [USE_GLX="yes"], [:])
     saved_CPPFLAGS="$CPPFLAGS"
     saved_LIBS="$LIBS"
@@ -240,43 +253,38 @@ if test "$USE_X11:$enable_glx" = "yes:yes"; then
     AC_CHECK_LIB([GL], [glXCreateContext], [:] [USE_GLX="no"])
     CPPFLAGS="$saved_CPPFLAGS"
     LIBS="$saved_LIBS"
+
+    if test "x$USE_GLX" = "xno" -a "x$enable_glx" = "xyes"; then
+       AC_MSG_ERROR([VA/GLX explicitly enabled, but libGL couldn't be found])
+    fi
+
     if test "$USE_GLX" = "yes"; then
         AC_DEFINE([HAVE_VA_GLX], [1], [Defined to 1 if VA/GLX API is built])
     fi
 fi
 AM_CONDITIONAL(USE_GLX, test "$USE_GLX" = "yes")
 
-# Check for EGL
-USE_EGL="no"
-if test "$enable_egl" = "yes"; then
-    PKG_CHECK_MODULES([EGL], [egl], [USE_EGL="yes"], [:])
-    saved_CPPFLAGS="$CPPFLAGS"
-    saved_LIBS="$LIBS"
-    CPPFLAGS="$CPPFLAGS $EGL_CFLAGS"
-    LIBS="$LIBS $EGL_LIBS"
-    AC_CHECK_HEADERS([EGL/egl.h], [:], [USE_EGL="no"])
-    AC_CHECK_LIB([EGL], [eglGetDisplay], [:], [USE_EGL="no"])
-    CPPFLAGS="$saved_CPPFLAGS"
-    LIBS="$saved_LIBS"
-    if test "$USE_EGL" = "yes"; then
-        AC_DEFINE([HAVE_VA_EGL], [1], [Defined to 1 if VA/EGL API is built])
-    fi
-fi
-AM_CONDITIONAL(USE_EGL, test "$USE_EGL" = "yes")
-
 # Check for Wayland
 WAYLAND_API_VERSION=wayland_api_version
 AC_SUBST(WAYLAND_API_VERSION)
 
 USE_WAYLAND="no"
-if test "$enable_wayland" = "yes"; then
+if test "x$enable_wayland" != "xno"; then
     PKG_CHECK_MODULES([WAYLAND], [wayland-client >= wayland_api_version],
         [USE_WAYLAND="yes"], [:])
+
+    if test "x$USE_WAYLAND" = "xno" -a "x$enable_wayland" = "xyes"; then
+        AC_MSG_ERROR([wayland explicitly enabled, however $WAYLAND_PKG_ERRORS])
+    fi
+
     if test "$USE_WAYLAND" = "yes"; then
 
         WAYLAND_PREFIX=`$PKG_CONFIG --variable=prefix wayland-client`
         AC_PATH_PROG([WAYLAND_SCANNER], [wayland-scanner],,
                      [${WAYLAND_PREFIX}/bin$PATH_SEPARATOR$PATH])
+        if test "x$WAYLAND_SCANNER" = "x"; then
+            AC_MSG_ERROR([wayland-scanner not found: Install it or use --disable-wayland])
+        fi
 
         AC_DEFINE([HAVE_VA_WAYLAND], [1],
                   [Defined to 1 if VA/Wayland API is built])
@@ -293,48 +301,17 @@ if test "$USE_DRM:$USE_X11:$USE_WAYLAND" = "no:no:no"; then
     AC_MSG_ERROR([Please select at least one backend (DRM, X11, Wayland)])
 fi
 
-# Define __vaDriverInit*() function name for dummy backend
-VA_DRIVER_INIT_FUNC="__vaDriverInit_${VA_API_MAJOR_VERSION}_${VA_API_MINOR_VERSION}"
-AC_DEFINE_UNQUOTED([VA_DRIVER_INIT_FUNC], [$VA_DRIVER_INIT_FUNC],
-    [Defined to the versioned __vaDriverInit function name])
-
 AC_OUTPUT([
     Makefile
-    debian.upstream/Makefile
-    debian.upstream/changelog
-    debian.upstream/control
-    debian.upstream/libva$LIBVA_MAJOR_VERSION.install:\
-debian.upstream/libva.install.in
-    debian.upstream/libva-drm$LIBVA_MAJOR_VERSION.install:\
-debian.upstream/libva-drm.install.in
-    debian.upstream/libva-egl$LIBVA_MAJOR_VERSION.install:\
-debian.upstream/libva-egl.install.in
-    debian.upstream/libva-glx$LIBVA_MAJOR_VERSION.install:\
-debian.upstream/libva-glx.install.in
-    debian.upstream/libva-wayland$LIBVA_MAJOR_VERSION.install:\
-debian.upstream/libva-wayland.install.in
-    debian.upstream/libva-x11-$LIBVA_MAJOR_VERSION.install:\
-debian.upstream/libva-x11.install.in
     doc/Makefile
-    dummy_drv_video/Makefile
     pkgconfig/Makefile
     pkgconfig/libva-drm.pc
-    pkgconfig/libva-egl.pc
     pkgconfig/libva-glx.pc
-    pkgconfig/libva-tpi.pc
     pkgconfig/libva-wayland.pc
     pkgconfig/libva-x11.pc
     pkgconfig/libva.pc
-    test/Makefile
-    test/basic/Makefile
-    test/common/Makefile
-    test/decode/Makefile
-    test/encode/Makefile
-    test/putsurface/Makefile
-    test/vainfo/Makefile
     va/Makefile
     va/drm/Makefile
-    va/egl/Makefile
     va/glx/Makefile
     va/va_version.h
     va/wayland/Makefile
@@ -346,7 +323,6 @@ BACKENDS=""
 AS_IF([test x$USE_DRM = xyes], [BACKENDS="$BACKENDS drm"])
 AS_IF([test x$USE_X11 = xyes], [BACKENDS="$BACKENDS x11"])
 AS_IF([test x$USE_GLX = xyes], [BACKENDS="$BACKENDS glx"])
-AS_IF([test x$USE_EGL = xyes], [BACKENDS="$BACKENDS egl"])
 AS_IF([test x$USE_WAYLAND = xyes], [BACKENDS="$BACKENDS wayland"])
 
 echo
@@ -355,6 +331,6 @@ echo
 echo Installation prefix .............. : $prefix
 echo Default driver path .............. : $LIBVA_DRIVERS_PATH
 echo Extra window systems ............. : $BACKENDS
-echo Build dummy driver ............... : $enable_dummy_driver
 echo Build documentation .............. : $enable_docs
+echo Build with messaging ............. : $enable_va_messaging
 echo
