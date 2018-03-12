@@ -57,7 +57,7 @@
 #define CHECK_STRING(s, ctx, var) if (!va_checkString(dpy, ctx->str_##var, #var)) s = VA_STATUS_ERROR_UNKNOWN;
 
 #ifdef STATIC_DRIVER
-extern VADriverInit __vaDriverInit_1_0;
+extern VADriverInit __vaDriverInit_1_1;
 #endif
 
 /*
