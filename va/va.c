@@ -429,7 +429,7 @@ static VAStatus va_openDriver(VADisplay dpy, char *driver_name)
                 dlclose(handle);
             } else {
 #else
-                VADriverInit init_func = (VADriverInit)&__vaDriverInit_1_0;
+                VADriverInit init_func = (VADriverInit)&__vaDriverInit_1_1;
 #endif
                 struct VADriverVTable *vtable = ctx->vtable;
                 struct VADriverVTableVPP *vtable_vpp = ctx->vtable_vpp;
