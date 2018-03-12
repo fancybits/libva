@@ -125,101 +125,38 @@ VADisplay vaGetDisplay (
     void *native_dpy /* implementation specific */
 )
 {
-    VADisplay dpy = NULL;
     VADisplayContextP pDisplayContext;
+    VADriverContextP  pDriverContext;
+    struct drm_state *drm_state;
 
     if (!native_dpy)
         return NULL;
 
-    if (!dpy)
-    {
-        /* create new entry */
-        VADriverContextP pDriverContext = 0;
-        struct drm_state *drm_state = 0;
-        pDisplayContext = va_newDisplayContext();
-        pDriverContext  = (VADriverContextP)calloc(1, sizeof(*pDriverContext));
-        drm_state       = (struct drm_state*)calloc(1, sizeof(*drm_state));
-        if (pDisplayContext && pDriverContext && drm_state)
-        {
-            pDriverContext->native_dpy       = (void *)native_dpy;
-            pDriverContext->display_type     = VA_DISPLAY_ANDROID;
-            pDisplayContext->pDriverContext  = pDriverContext;
-            pDisplayContext->vaIsValid       = va_DisplayContextIsValid;
-            pDisplayContext->vaDestroy       = va_DisplayContextDestroy;
-            pDisplayContext->vaGetDriverName = va_DisplayContextGetDriverName;
-            pDriverContext->drm_state 	     = drm_state;
-            dpy                              = (VADisplay)pDisplayContext;
-        }
-        else
-        {
-            if (pDisplayContext)
-                free(pDisplayContext);
-            if (pDriverContext)
-                free(pDriverContext);
-            if (drm_state)
-                free(drm_state);
-        }
+    pDisplayContext = va_newDisplayContext();
+    if (!pDisplayContext)
+        return NULL;
+
+    pDisplayContext->vaIsValid       = va_DisplayContextIsValid;
+    pDisplayContext->vaDestroy       = va_DisplayContextDestroy;
+    pDisplayContext->vaGetDriverName = va_DisplayContextGetDriverName;
+
+    pDriverContext = va_newDriverContext(pDisplayContext);
+    if (!pDriverContext) {
+        free(pDisplayContext);
+        return NULL;
     }
-  
-    return dpy;
-}
 
+    pDriverContext->native_dpy   = (void *)native_dpy;
+    pDriverContext->display_type = VA_DISPLAY_ANDROID;
 
-extern "C"  {
-    extern int va_fool_postp; /* do nothing for vaPutSurface if set */
-    extern int va_trace_flag; /* trace vaPutSurface parameters */
+    drm_state = (struct drm_state*)calloc(1, sizeof(*drm_state));
+    if (!drm_state) {
+        free(pDisplayContext);
+        free(pDriverContext);
+        return NULL;
+    }
 
-    void va_TracePutSurface (
-        VADisplay dpy,
-        VASurfaceID surface,
-        void *draw, /* the target Drawable */
-        short srcx,
-        short srcy,
-        unsigned short srcw,
-        unsigned short srch,
-        short destx,
-        short desty,
-        unsigned short destw,
-        unsigned short desth,
-        VARectangle *cliprects, /* client supplied clip list */
-        unsigned int number_cliprects, /* number of clip rects in the clip list */
-        unsigned int flags /* de-interlacing flags */
-        );
-}
+    pDriverContext->drm_state = drm_state;
 
-VAStatus vaPutSurface (
-    VADisplay dpy,
-    VASurfaceID surface,
-    sp<ANativeWindow> draw, /* Android Native Window */
-    short srcx,
-    short srcy,
-    unsigned short srcw,
-    unsigned short srch,
-    short destx,
-    short desty,
-    unsigned short destw,
-    unsigned short desth,
-    VARectangle *cliprects, /* client supplied clip list */
-    unsigned int number_cliprects, /* number of clip rects in the clip list */
-    unsigned int flags /* de-interlacing flags */
-)
-{
-    VADriverContextP ctx;
-
-    if (va_fool_postp)
-        return VA_STATUS_SUCCESS;
-
-    if (draw == NULL)
-        return VA_STATUS_ERROR_UNKNOWN;
-
-    CHECK_DISPLAY(dpy);
-    ctx = CTX(dpy);
-
-    VA_TRACE_LOG(va_TracePutSurface, dpy, surface, static_cast<void*>(&draw), srcx, srcy, srcw, srch,
-                 destx, desty, destw, desth,
-                 cliprects, number_cliprects, flags );
-    
-    return ctx->vtable->vaPutSurface( ctx, surface, static_cast<void*>(&draw), srcx, srcy, srcw, srch, 
-                                     destx, desty, destw, desth,
-                                     cliprects, number_cliprects, flags );
+    return (VADisplay)pDisplayContext;
 }
