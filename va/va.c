@@ -57,7 +57,7 @@
 #define CHECK_STRING(s, ctx, var) if (!va_checkString(dpy, ctx->str_##var, #var)) s = VA_STATUS_ERROR_UNKNOWN;
 
 #ifdef STATIC_DRIVER
-extern VADriverInit __vaDriverInit_1_1;
+extern VADriverInit __vaDriverInit_1_2;
 #endif
 
 /*
@@ -430,7 +430,7 @@ static VAStatus va_openDriver(VADisplay dpy, char *driver_name)
                 dlclose(handle);
             } else {
 #else
-                VADriverInit init_func = (VADriverInit)&__vaDriverInit_1_1;
+                VADriverInit init_func = (VADriverInit)&__vaDriverInit_1_2;
 #endif
                 struct VADriverVTable *vtable = ctx->vtable;
                 struct VADriverVTableVPP *vtable_vpp = ctx->vtable_vpp;
