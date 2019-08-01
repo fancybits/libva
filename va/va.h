@@ -214,10 +214,18 @@ typedef int VAStatus;	/** Return status type from functions */
 #define VA_STATUS_ERROR_NOT_ENOUGH_BUFFER       0x00000025
 #define VA_STATUS_ERROR_UNKNOWN			0xFFFFFFFF
 
-/** De-interlacing flags for vaPutSurface() */
+/** 
+ * 1. De-interlacing flags for vaPutSurface() 
+ * 2. Surface sample type for input/output surface flag
+ *    - Progressive: VA_FRAME_PICTURE
+ *    - Interleaved: VA_TOP_FIELD_FIRST, VA_BOTTOM_FIELD_FIRST
+ *    - Field: VA_TOP_FIELD, VA_BOTTOM_FIELD
+*/
 #define VA_FRAME_PICTURE        0x00000000 
 #define VA_TOP_FIELD            0x00000001
 #define VA_BOTTOM_FIELD         0x00000002
+#define VA_TOP_FIELD_FIRST      0x00000004
+#define VA_BOTTOM_FIELD_FIRST   0x00000008
 
 /**
  * Enabled the positioning/cropping/blending feature:
@@ -748,6 +756,11 @@ typedef enum
      * support for QP info for buffer #VAEncQpBuffer.
      */
     VAConfigAttribQPBlockSize            = 37,
+    /**
+     * \brief encode max frame size attribute. Read-only
+     * attribute value \c VAConfigAttribValMaxFrameSize represent max frame size support   
+     */
+    VAConfigAttribMaxFrameSize           = 38,
     /**@}*/
     VAConfigAttribTypeMax
 } VAConfigAttribType;
@@ -820,6 +833,23 @@ typedef struct _VAConfigAttrib {
  *  simultaneously. And BRC would adjust accordingly. This is so called
  *  Parallel BRC. */
 #define VA_RC_PARALLEL                  0x00000200
+/** \brief Quality defined VBR
+ * Use Quality factor to determine the good enough QP for each MB such that
+ * good enough quality can be obtained without waste of bits
+ * for this BRC mode, you must set all legacy VBR parameters
+ * and reuse quality_factor in \c VAEncMiscParameterRateControl
+ * */
+#define VA_RC_QVBR                      0x00000400
+/** \brief Average VBR
+ *  Average variable bitrate control algorithm focuses on overall encoding
+ *  quality while meeting the specified target bitrate, within the accuracy
+ *  range, after a convergence period.
+ *  bits_per_second in VAEncMiscParameterRateControl is target bitrate for AVBR.
+ *  Convergence is specified in the unit of frame.
+ *  window_size in VAEncMiscParameterRateControl is equal to convergence for AVBR.
+ *  Accuracy is in the range of [1,100], 1 means one percent, and so on. 
+ *  target_percentage in VAEncMiscParameterRateControl is equal to accuracy for AVBR. */
+#define VA_RC_AVBR                      0x00000800
 
 /**@}*/
 
@@ -915,6 +945,23 @@ typedef union _VAConfigAttribValDecJPEG {
 /** \brief Driver supports an arbitrary number of rows per slice. */
 #define VA_ENC_SLICE_STRUCTURE_ARBITRARY_ROWS           0x00000010
 /**@}*/
+
+/** \brief Attribute value for VAConfigAttribMaxFrameSize */
+typedef union _VAConfigAttribValMaxFrameSize {
+    struct {
+        /** \brief support max frame size 
+          * if max_frame_size == 1, VAEncMiscParameterTypeMaxFrameSize/VAEncMiscParameterBufferMaxFrameSize
+          * could be used to set the frame size, if multiple_pass also equal 1, VAEncMiscParameterTypeMultiPassFrameSize
+          * VAEncMiscParameterBufferMultiPassFrameSize could be used to set frame size and pass information 
+          */ 
+        uint32_t max_frame_size : 1;
+        /** \brief multiple_pass support */
+        uint32_t multiple_pass  : 1;
+        /** \brief reserved bits for future, must be zero*/
+        uint32_t reserved       :30;
+    } bits;
+    uint32_t value;
+} VAConfigAttribValMaxFrameSize;
 
 /** \brief Attribute value for VAConfigAttribEncJPEG */
 typedef union _VAConfigAttribValEncJPEG {
@@ -1243,7 +1290,12 @@ typedef enum {
     VASurfaceAttribMaxHeight,
     /** \brief Surface memory type expressed in bit fields (int, read/write). */
     VASurfaceAttribMemoryType,
-    /** \brief External buffer descriptor (pointer, write). */
+    /** \brief External buffer descriptor (pointer, write).
+     *
+     * Refer to the documentation for the memory type being created to
+     * determine what descriptor structure to pass here.  If not otherwise
+     * stated, the common VASurfaceAttribExternalBuffers should be used.
+     */
     VASurfaceAttribExternalBufferDescriptor,
     /** \brief Surface usage hint, gives the driver a hint of intended usage 
      *  to optimize allocation (e.g. tiling) (int, read/write). */
@@ -1633,6 +1685,19 @@ typedef enum
     /** decode stream out buffer, intermedia data of decode, it may include MV, MB mode etc.
       * it can be used to detect motion and analyze the frame contain  */
     VADecodeStreamoutBufferType             = 56,
+
+    /** \brief HEVC Decoding Subset Parameter buffer type
+     *
+     * The subsets parameter buffer is concatenation with one or multiple
+     * subset entry point offsets. All the offset values are layed out one
+     * by one according to slice order with first slice segment first, second
+     * slice segment second, etc... The entry number is indicated by parameter
+     * \ref num_entry_point_offsets. And the first entry position of the entry
+     * point offsets for any slice segment is indicated by parameter
+     * entry_offset_to_subset_array in VAPictureParameterBufferHEVC data structure.
+     */
+    VASubsetsParameterBufferType        = 57,
+
     VABufferTypeMax
 } VABufferType;
 
@@ -1718,6 +1783,8 @@ typedef enum
     VAEncMiscParameterTypeSkipFrame     = 9,
     /** \brief Buffer type used for region-of-interest (ROI) parameters. */
     VAEncMiscParameterTypeROI           = 10,
+    /** \brief Buffer type used to express a maximum frame size (in bytes) settings for multiple pass. */
+    VAEncMiscParameterTypeMultiPassFrameSize       = 11,
     /** \brief Buffer type used for temporal layer structure */
     VAEncMiscParameterTypeTemporalLayerStructure   = 12,
     /** \brief Buffer type used for dirty region-of-interest (ROI) parameters. */
@@ -1907,6 +1974,7 @@ typedef struct _VAEncMiscParameterRateControl
     /** Initial quality factor used in ICQ mode.
      *
      * This value must be between 1 and 51.
+     * this value will be deprecated in future, to use quality_factor instead of it.
      */
     uint32_t ICQ_quality_factor;
     /** Maximum quantiser value to use.
@@ -1915,8 +1983,13 @@ typedef struct _VAEncMiscParameterRateControl
      * may exceed the target.  Ignored if set to zero.
      */
     uint32_t max_qp;
+    /** Quality factor
+     *
+     *  the range will be different for different codec
+     */
+    uint32_t quality_factor;
     /** Reserved bytes for future use, must be zero. */
-    uint32_t va_reserved[VA_PADDING_MEDIUM - 2];
+    uint32_t va_reserved[VA_PADDING_MEDIUM - 3];
 } VAEncMiscParameterRateControl;
 
 /** Encode framerate parameters.
@@ -2071,13 +2144,40 @@ typedef struct _VAEncMiscParameterHRD
  */
 typedef struct _VAEncMiscParameterBufferMaxFrameSize {
     /** \brief Type. Shall be set to #VAEncMiscParameterTypeMaxFrameSize. */
-    VAEncMiscParameterType      type;
+    /** duplicated with VAEncMiscParameterBuffer, should be deprecated*/
+    va_deprecated VAEncMiscParameterType      type;
     /** \brief Maximum size of a frame (in bits). */
     uint32_t                max_frame_size;
 
     /** \brief Reserved bytes for future use, must be zero */
     uint32_t                va_reserved[VA_PADDING_LOW];
 } VAEncMiscParameterBufferMaxFrameSize;
+
+/**
+ * \brief Maximum frame size (in bytes) settings for multiple pass.
+ *
+ * This misc parameter buffer defines the maximum size of a frame (in
+ * bytes) settings for multiple pass. currently only AVC encoder can
+ * support this settings in multiple pass case. If the frame size exceeds
+ * this size, the encoder will do more pak passes to adjust the QP value
+ * to control the frame size.
+ */
+typedef struct _VAEncMiscParameterBufferMultiPassFrameSize {
+    /** \brief Type. Shall be set to #VAEncMiscParameterTypeMultiPassMaxFrameSize. */
+    /** duplicated with VAEncMiscParameterBuffer, should be deprecated*/
+    va_deprecated VAEncMiscParameterType      type;
+    /** \brief Maximum size of a frame (in byte) */
+    uint32_t                max_frame_size;
+    /** \brief Reserved bytes for future use, must be zero */
+    uint32_t                reserved;
+    /** \brief number of passes, every pass has different QP, currently AVC encoder can support up to 4 passes */
+    uint8_t                 num_passes;
+    /** \brief delta QP list for every pass */
+    uint8_t                *delta_qp;
+
+    /** \brief Reserved bytes for future use, must be zero */
+    unsigned long           va_reserved[VA_PADDING_LOW];
+} VAEncMiscParameterBufferMultiPassFrameSize;
 
 /**
  * \brief Encoding quality level.
@@ -2114,17 +2214,18 @@ typedef struct _VAEncMiscParameterQuantization
         struct
         {
 	    /* \brief disable trellis for all frames/fields */
-            uint64_t disable_trellis : 1;
+            uint32_t disable_trellis : 1;
 	    /* \brief enable trellis for I frames/fields */
-            uint64_t enable_trellis_I : 1;
+            uint32_t enable_trellis_I : 1;
 	    /* \brief enable trellis for P frames/fields */
-            uint64_t enable_trellis_P : 1;
+            uint32_t enable_trellis_P : 1;
 	    /* \brief enable trellis for B frames/fields */
-            uint64_t enable_trellis_B : 1;
-            uint64_t reserved : 28;
+            uint32_t enable_trellis_B : 1;
+            uint32_t reserved : 28;
         } bits;
-        uint64_t value;
+        uint32_t value;
     } quantization_flags;
+    uint32_t va_reserved;
 } VAEncMiscParameterQuantization;
 
 /**
@@ -3853,6 +3954,45 @@ VAStatus vaQuerySurfaceError(
  * @deprecated Use I420 instead.
  */
 #define VA_FOURCC_IYUV          0x56555949
+/**
+ * 10-bit Pixel RGB formats.
+ */
+#define VA_FOURCC_A2R10G10B10   0x30335241 /* VA_FOURCC('A','R','3','0') */
+/**
+ * 10-bit Pixel BGR formats.
+ */
+#define VA_FOURCC_A2B10G10R10   0x30334241 /* VA_FOURCC('A','B','3','0') */
+
+/** Y8: 8-bit greyscale.
+ *
+ * Only a single sample, 8 bit Y plane for monochrome images
+ */
+#define VA_FOURCC_Y8            0x20203859
+/** Y16: 16-bit greyscale.
+ *
+ * Only a single sample, 16 bit Y plane for monochrome images
+ */
+#define VA_FOURCC_Y16           0x20363159
+/** VYUV: packed 8-bit YUV 4:2:2.
+ *
+ * Four bytes per pair of pixels: V, Y, U, V.
+ */
+#define VA_FOURCC_VYUY          0x59555956
+/** YVYU: packed 8-bit YUV 4:2:2.
+ *
+ * Four bytes per pair of pixels: Y, V, Y, U.
+ */
+#define VA_FOURCC_YVYU          0x55595659
+/** AGRB64: three-plane 16-bit ARGB 16:16:16:16
+ *
+ * The four planes contain: alpha, red, green, blue respectively.
+ */
+#define VA_FOURCC_ARGB64        0x34475241
+/** ABGR64: three-plane 16-bit ABGR 16:16:16:16
+ *
+ * The four planes contain: alpha, blue, green, red respectively.
+ */
+#define VA_FOURCC_ABGR64        0x34474241
 
 /* byte order */
 #define VA_LSB_FIRST		1
