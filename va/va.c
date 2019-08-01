@@ -506,7 +506,7 @@ static VAStatus va_openDriver(VADisplay dpy, char *driver_name)
 #ifdef STATIC_DRIVER
                 if (VA_STATUS_SUCCESS != vaStatus) {
                     va_errorMessage(dpy, "driver init failed\n");
-				}
+                }
 #else
                 if (VA_STATUS_SUCCESS != vaStatus) {
                     va_errorMessage(dpy, "%s init failed\n", driver_path);
