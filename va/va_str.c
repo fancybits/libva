@@ -61,6 +61,9 @@ const char *vaProfileStr(VAProfile profile)
     TOSTR(VAProfileHEVCSccMain);
     TOSTR(VAProfileHEVCSccMain10);
     TOSTR(VAProfileHEVCSccMain444);
+    TOSTR(VAProfileAV1Profile0);
+    TOSTR(VAProfileAV1Profile1);
+    TOSTR(VAProfileHEVCSccMain444_10);
     default: break;
     }
     return "<unknown profile>";
@@ -124,6 +127,9 @@ const char *vaConfigAttribTypeStr(VAConfigAttribType configAttribType)
     TOSTR(VAConfigAttribQPBlockSize);
     TOSTR(VAConfigAttribStats);
     TOSTR(VAConfigAttribMaxFrameSize);
+    TOSTR(VAConfigAttribPredictionDirection);
+    TOSTR(VAConfigAttribMultipleFrame);
+    TOSTR(VAConfigAttribContextPriority);
     case VAConfigAttribTypeMax: break;
     }
     return "<unknown config attribute type>";
@@ -173,6 +179,7 @@ const char *vaBufferTypeStr(VABufferType bufferType)
     TOSTR(VAEncFEICTBCmdBufferType);
     TOSTR(VAEncFEICURecordBufferType);
     TOSTR(VASubsetsParameterBufferType);
+    TOSTR(VAContextParameterUpdateBufferType);
     case VABufferTypeMax: break;
     }
     return "<unknown buffer type>";

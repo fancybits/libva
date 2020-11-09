@@ -27,7 +27,7 @@
 # - reset micro version to zero when minor version is incremented
 # - reset minor version to zero when major version is incremented
 m4_define([va_api_major_version], [1])
-m4_define([va_api_minor_version], [5])
+m4_define([va_api_minor_version], [10])
 m4_define([va_api_micro_version], [0])
 
 m4_define([va_api_version],
@@ -209,6 +209,11 @@ if test "$ac_cv_have_gnuc_visibility_attribute" = "yes"; then
               [Defined to 1 if GCC visibility attribute is supported])
 fi
 
+# Check for -ldl (often not required)
+AC_SEARCH_LIBS([dlopen], [dl], [], [
+  AC_MSG_ERROR([unable to find the dlopen() function])
+])
+
 # Check for -fstack-protector
 ssp_cc=yes
 if test "X$CC-cc" != "X"; then
@@ -259,7 +264,7 @@ if test "$USE_X11:$enable_glx" = "no:yes"; then
    AC_MSG_ERROR([VA/GLX explicitly enabled, but VA/X11 isn't built])
 fi
 
-if test "$USE_X11" == "yes" -a "$enable_glx" != "no"; then
+if test "$USE_X11" = "yes" -a "$enable_glx" != "no"; then
     PKG_CHECK_MODULES([GLX], [gl x11], [USE_GLX="yes"], [:])
     saved_CPPFLAGS="$CPPFLAGS"
     saved_LIBS="$LIBS"

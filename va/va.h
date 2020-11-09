@@ -119,11 +119,12 @@ extern "C" {
  * 	- \ref api_enc_mpeg2
  * 	- \ref api_enc_vp8
  * 	- \ref api_enc_vp9
- * - Decoder (HEVC, JPEG, VP8, VP9)
+ * - Decoder (HEVC, JPEG, VP8, VP9, AV1)
  *      - \ref api_dec_hevc
  *      - \ref api_dec_jpeg
  *      - \ref api_dec_vp8
  *      - \ref api_dec_vp9
+ *      - \ref api_dec_av1
  * - \ref api_vpp
  * - FEI (H264, HEVC)
  * 	- \ref api_fei
@@ -212,6 +213,8 @@ typedef int VAStatus;	/** Return status type from functions */
 #define VA_STATUS_ERROR_UNSUPPORTED_MEMORY_TYPE 0x00000024
 /** \brief Indicate allocated buffer size is not enough for input or output. */
 #define VA_STATUS_ERROR_NOT_ENOUGH_BUFFER       0x00000025
+/** \brief Indicate an operation isn't completed because time-out interval elapsed. */
+#define VA_STATUS_ERROR_TIMEDOUT                0x00000026
 #define VA_STATUS_ERROR_UNKNOWN			0xFFFFFFFF
 
 /** 
@@ -254,6 +257,13 @@ typedef int VAStatus;	/** Return status type from functions */
 #define VA_FILTER_SCALING_HQ            0x00000200
 #define VA_FILTER_SCALING_NL_ANAMORPHIC 0x00000300
 #define VA_FILTER_SCALING_MASK          0x00000f00
+
+/** Interpolation method for scaling */
+#define VA_FILTER_INTERPOLATION_DEFAULT                    0x00000000
+#define VA_FILTER_INTERPOLATION_NEAREST_NEIGHBOR           0x00001000
+#define VA_FILTER_INTERPOLATION_BILINEAR                   0x00002000
+#define VA_FILTER_INTERPOLATION_ADVANCED                   0x00003000
+#define VA_FILTER_INTERPOLATION_MASK                       0x0000f000
 
 /** Padding size in 4-bytes */
 #define VA_PADDING_LOW          4
@@ -392,7 +402,10 @@ typedef enum
     VAProfileHEVCMain444_12             = 28,
     VAProfileHEVCSccMain                = 29,
     VAProfileHEVCSccMain10              = 30,
-    VAProfileHEVCSccMain444             = 31
+    VAProfileHEVCSccMain444             = 31,
+    VAProfileAV1Profile0                = 32,
+    VAProfileAV1Profile1                = 33,
+    VAProfileHEVCSccMain444_10          = 34
 } VAProfile;
 
 /**
@@ -761,6 +774,27 @@ typedef enum
      * attribute value \c VAConfigAttribValMaxFrameSize represent max frame size support   
      */
     VAConfigAttribMaxFrameSize           = 38,
+    /** \brief inter frame prediction directrion attribute. Read-only.
+     * this attribute conveys the prediction direction (backward or forword) for specific config
+     * the value could be  VA_PREDICTION_DIRECTION_XXXX. it can be combined with VAConfigAttribEncMaxRefFrames
+     * to describe reference list , and the prediction direction. if this attrib is not present,both direction
+     * should be supported, no restriction.
+     * for example: normal HEVC encoding , maximum reference frame number in reflist 0 and reflist 1 is deduced
+     * by  VAConfigAttribEncMaxRefFrames. so there are typical P frame, B frame,
+     * if VAConfigAttribPredictionDirection is also present. it will stipulate prediction direction in both
+     * reference list. if only one prediction direction present(such as PREVIOUS),all reference frame should be
+     *  previous frame (PoC < current).
+     */
+    VAConfigAttribPredictionDirection   = 39,
+    /** \brief combined submission of multiple frames from different streams, it is optimization for different HW
+     * implementation, multiple frames encode/decode can improve HW concurrency
+     */
+    VAConfigAttribMultipleFrame         = 40,
+    /** \brief priority setting for the context. Read-Write
+     *  attribute value is \c VAConfigAttribValContextPriority
+     *  this setting also could be update by \c VAContextParameterUpdateBuffer
+     */
+    VAConfigAttribContextPriority       = 41,
     /**@}*/
     VAConfigAttribTypeMax
 } VAConfigAttribType;
@@ -848,8 +882,18 @@ typedef struct _VAConfigAttrib {
  *  Convergence is specified in the unit of frame.
  *  window_size in VAEncMiscParameterRateControl is equal to convergence for AVBR.
  *  Accuracy is in the range of [1,100], 1 means one percent, and so on. 
- *  target_percentage in VAEncMiscParameterRateControl is equal to accuracy for AVBR. */
+ *  target_percentage in VAEncMiscParameterRateControl is equal to accuracy for AVBR.
+ * */
 #define VA_RC_AVBR                      0x00000800
+/** \brief Transport Controlled BRC
+ *  Specific bitrate control for real time streaming.
+ *  TCBRC can instantly react to channel change to remove or significantly reduce the delay.
+ *  Application (transport) provides channel feedback to driver through TargetFrameSize.
+ *  When channel condition is very good (almost no constraint on instant frame size),
+ *  the app should set target frame size as zero. Otherwise, channel capacity divided by fps
+ *  should be used.
+ * */
+#define VA_RC_TCBRC                     0x00001000
 
 /**@}*/
 
@@ -863,14 +907,13 @@ typedef struct _VAConfigAttrib {
 /** @name Attribute values for VAConfigAttribDecJPEG */
 /**@{*/
 typedef union _VAConfigAttribValDecJPEG {
-    struct{
+    struct {
     /** \brief Set to (1 << VA_ROTATION_xxx) for supported rotation angles. */
     uint32_t rotation : 4;
     /** \brief Reserved for future use. */
     uint32_t reserved : 28;
-    }bits;
+    } bits;
     uint32_t value;
-    uint32_t va_reserved[VA_PADDING_LOW];
 } VAConfigAttribValDecJPEG;
 /** @name Attribute values for VAConfigAttribDecProcessing */
 /**@{*/
@@ -938,12 +981,16 @@ typedef union _VAConfigAttribValDecJPEG {
 #define VA_ENC_SLICE_STRUCTURE_POWER_OF_TWO_ROWS        0x00000001
 /** \brief Driver supports an arbitrary number of macroblocks per slice. */
 #define VA_ENC_SLICE_STRUCTURE_ARBITRARY_MACROBLOCKS    0x00000002
-/** \brief Dirver support 1 rows  per slice */
+/** \brief Driver support 1 row per slice */
 #define VA_ENC_SLICE_STRUCTURE_EQUAL_ROWS               0x00000004
-/** \brief Dirver support max encoded slice size per slice */
+/** \brief Driver support max encoded slice size per slice */
 #define VA_ENC_SLICE_STRUCTURE_MAX_SLICE_SIZE           0x00000008
 /** \brief Driver supports an arbitrary number of rows per slice. */
 #define VA_ENC_SLICE_STRUCTURE_ARBITRARY_ROWS           0x00000010
+/** \brief Driver supports any number of rows per slice but they must be the same
+*       for all slices except for the last one, which must be equal or smaller
+*       to the previous slices. */
+#define VA_ENC_SLICE_STRUCTURE_EQUAL_MULTI_ROWS         0x00000020
 /**@}*/
 
 /** \brief Attribute value for VAConfigAttribMaxFrameSize */
@@ -988,6 +1035,21 @@ typedef union _VAConfigAttribValEncJPEG {
 #define VA_ENC_QUANTIZATION_NONE                        0x00000000
 /** \brief Driver supports trellis quantization */
 #define VA_ENC_QUANTIZATION_TRELLIS_SUPPORTED           0x00000001
+/**@}*/
+
+/** @name Attribute values for VAConfigAttribPredictionDirection */
+/**@{*/
+/** \brief Driver support forward reference frame (inter frame for vpx, P frame for H26x MPEG)
+ * can work with the VAConfigAttribEncMaxRefFrames. for example: low delay B frame of HEVC.
+ * these value can be OR'd together. typical value should be VA_PREDICTION_DIRECTION_PREVIOUS
+ * or VA_PREDICTION_DIRECTION_PREVIOUS | VA_PREDICTION_DIRECTION_FUTURE, theoretically, there
+ * are no stream only include future reference frame.
+ */
+#define VA_PREDICTION_DIRECTION_PREVIOUS                0x00000001
+/** \brief Driver support backward prediction frame/slice */
+#define VA_PREDICTION_DIRECTION_FUTURE                  0x00000002
+/** \brief Dirver require both reference list must be not empty for inter frame */
+#define VA_PREDICTION_DIRECTION_BI_NOT_EMPTY            0x00000004
 /**@}*/
 
 /** @name Attribute values for VAConfigAttribEncIntraRefresh */
@@ -1085,6 +1147,33 @@ typedef union _VAConfigAttribValEncRateControlExt {
     } bits;
     uint32_t value;
 } VAConfigAttribValEncRateControlExt;
+
+/** \brief Attribute value for VAConfigAttribMultipleFrame*/
+typedef union _VAConfigAttribValMultipleFrame {
+    struct {
+        /** \brief max num of concurrent frames from different stream */
+        uint32_t max_num_concurrent_frames      : 8;
+        /** \brief indicate whether all stream must support same quality level
+         *  if mixed_quality_level == 0, same quality level setting for multple streams is required
+         *  if mixed_quality_level == 1, different stream can have different quality level*/
+        uint32_t mixed_quality_level            : 1;
+        /** \brief reserved bit for future, must be zero */
+        uint32_t reserved                       : 23;
+    } bits;
+    uint32_t value;
+}VAConfigAttribValMultipleFrame;
+
+/** brief Attribute value VAConfigAttribValContextPriority */
+typedef union _VAConfigAttribValContextPriority{
+    struct{
+        /** \brief the priority , for the Query operation (read) it represents highest priority
+         * for the set operation (write), value should be [0~highest priority] , 0 is lowest priority*/
+        uint32_t priority     :16;
+        /** \brief reserved bits for future, must be zero*/
+        uint32_t reserved     :16;
+    }bits;
+    uint32_t value;
+}VAConfigAttribValContextPriority;
 
 /** @name Attribute values for VAConfigAttribProcessingRate. */
 /**@{*/
@@ -1697,9 +1786,37 @@ typedef enum
      * entry_offset_to_subset_array in VAPictureParameterBufferHEVC data structure.
      */
     VASubsetsParameterBufferType        = 57,
+    /** \brief adjust context parameters dynamically
+     *
+     * this parameter is used to update context parameters, detail parameter is in
+     *  \c VAContextParameterUpdateBuffer
+     */
+    VAContextParameterUpdateBufferType  = 58,
 
     VABufferTypeMax
 } VABufferType;
+
+/** \brief update the context parameter
+ * this structure is used to update context parameters, such as priority of the context
+ * backend driver should keep the parameter unchanged if there no new
+ * parameter updated.
+ */
+typedef struct _VAContextParameterUpdateBuffer
+{
+    union{
+        struct {
+            /** \brief indicate whether context priority changed */
+            uint32_t context_priority_update :1;
+            /** \brief Reserved bits for future use, must be zero */
+            uint32_t reserved                :31;
+        } bits;
+        uint32_t value;
+    }flags;
+    /** \brief task/context priority */
+    VAConfigAttribValContextPriority context_priority;
+    /** \brief Reserved bytes for future use, must be zero */
+    uint32_t reserved[VA_PADDING_MEDIUM];
+} VAContextParameterUpdateBuffer;
 
 /**
  * Processing rate parameter for encode.
@@ -1988,8 +2105,17 @@ typedef struct _VAEncMiscParameterRateControl
      *  the range will be different for different codec
      */
     uint32_t quality_factor;
+    /** Target frame size
+     *
+     *  Desired frame size in bytes.
+     *  This parameter can be used in some RC modes (like Transport Controlled BRC)
+     *  where feedback from the app is required.
+     *  Zero value means no limits.
+     *
+     */
+    uint32_t target_frame_size;
     /** Reserved bytes for future use, must be zero. */
-    uint32_t va_reserved[VA_PADDING_MEDIUM - 3];
+    uint32_t va_reserved[VA_PADDING_LOW];
 } VAEncMiscParameterRateControl;
 
 /** Encode framerate parameters.
@@ -2469,6 +2595,7 @@ typedef struct _VAEncMiscParameterCustomRoundingControl
         uint32_t    value;
     }   rounding_offset_setting;
 } VAEncMiscParameterCustomRoundingControl;
+
 /**
  * There will be cases where the bitstream buffer will not have enough room to hold
  * the data for the entire slice, and the following flags will be used in the slice
@@ -3671,6 +3798,35 @@ VAStatus vaSyncSurface (
     VASurfaceID render_target
 );
 
+/** \brief Indicates an infinite timeout. */
+#define VA_TIMEOUT_INFINITE 0xFFFFFFFFFFFFFFFF
+
+/**
+ * \brief Synchronizes pending operations associated with the supplied surface.
+ *
+ * This function blocks during specified timeout (in nanoseconds) until
+ * all pending operations on the render target have been completed.
+ * If timeout is zero, the function returns immediately.
+ *
+ * Possible errors:
+ * - \ref VA_STATUS_ERROR_UNIMPLEMENTED: the VA driver implementation
+ *   does not support this interface
+ * - \ref VA_STATUS_ERROR_INVALID_DISPLAY: an invalid display was supplied
+ * - \ref VA_STATUS_ERROR_INVALID_SURFACE: an invalid surface was supplied
+ * - \ref VA_STATUS_ERROR_TIMEDOUT: synchronization is still in progress,
+ *   client should call the function again to complete synchronization
+ *
+ * @param[in] dpy         the VA display
+ * @param[in] surface     the surface for which synchronization is performed
+ * @param[in] timeout_ns  the timeout in nanoseconds
+ *
+ */
+VAStatus vaSyncSurface2 (
+    VADisplay dpy,
+    VASurfaceID surface,
+    uint64_t timeout_ns
+);
+
 typedef enum
 {
     VASurfaceRendering	= 1, /* Rendering in progress */ 
@@ -3725,6 +3881,46 @@ VAStatus vaQuerySurfaceError(
     VAStatus error_status,
     void **error_info
 );
+
+/**
+ * \brief Synchronizes pending operations associated with the supplied buffer.
+ *
+ * This function blocks during specified timeout (in nanoseconds) until
+ * all pending operations on the supplied buffer have been completed.
+ * If timeout is zero, the function returns immediately.
+ *
+ * Possible errors:
+ * - \ref VA_STATUS_ERROR_UNIMPLEMENTED: the VA driver implementation
+ *   does not support this interface
+ * - \ref VA_STATUS_ERROR_INVALID_DISPLAY: an invalid display was supplied
+ * - \ref VA_STATUS_ERROR_INVALID_BUFFER: an invalid buffer was supplied
+ * - \ref VA_STATUS_ERROR_TIMEDOUT: synchronization is still in progress,
+ *   client should call the function again to complete synchronization
+ *
+ * @param[in] dpy         the VA display
+ * @param[in] buf_id      the buffer for which synchronization is performed
+ * @param[in] timeout_ns  the timeout in nanoseconds
+ *
+ */
+VAStatus vaSyncBuffer(
+    VADisplay dpy,
+    VABufferID buf_id,
+    uint64_t timeout_ns
+);
+
+/**
+ * Notes about synchronization interfaces:
+ * vaSyncSurface:
+ * 1. Allows to synchronize output surface (i.e. from decoding or VP)
+ * 2. Allows to synchronize all bitstreams being encoded from the given input surface (1->N pipelines).
+ *
+ * vaSyncSurface2:
+ * 1. The same as vaSyncSurface but allows to specify a timeout
+ *
+ * vaSyncBuffer:
+ * 1. Allows to synchronize output buffer (e.g. bitstream from encoding).
+ *    Comparing to vaSyncSurface this function synchronizes given bitstream only.
+ */
 
 /**
  * Images and Subpictures
@@ -3905,6 +4101,12 @@ VAStatus vaQuerySurfaceError(
  * with the bottom six bits ignored.  The samples are in the order Y, U, Y, V.
  */
 #define VA_FOURCC_Y210          0x30313259
+/** Y212: packed 12-bit YUV 4:2:2.
+ *
+ * Eight bytes represent a pair of pixels.  Each sample is a two-byte little-endian value.
+ * The samples are in the order Y, U, Y, V.
+ */
+#define VA_FOURCC_Y212          0x32313259
 /** Y216: packed 16-bit YUV 4:2:2.
  *
  * Eight bytes represent a pair of pixels.  Each sample is a two-byte little-endian value.
@@ -3917,6 +4119,12 @@ VAStatus vaQuerySurfaceError(
  * A, V, Y, U are found in bits 31:30, 29:20, 19:10, 9:0 respectively.
  */
 #define VA_FOURCC_Y410          0x30313459
+/** Y412 packed 12-bit YUVA 4:4:4.
+ *
+ * Each pixel is a set of four samples, each of which is a two-byte little-endian value.
+ * The samples are in the order A, V, Y, U.
+ */
+#define VA_FOURCC_Y412          0x32313459
 /** Y416: packed 16-bit YUVA 4:4:4.
  *
  * Each pixel is a set of four samples, each of which is a two-byte little-endian value.
@@ -3935,6 +4143,12 @@ VAStatus vaQuerySurfaceError(
  * The first plane contains Y, the second plane contains U and V in pairs of samples.
  */
 #define VA_FOURCC_P010          0x30313050
+/** P012: two-plane 12-bit YUV 4:2:0.
+ *
+ * Each sample is a two-byte little-endian value with the bottom four bits ignored.
+ * The first plane contains Y, the second plane contains U and V in pairs of samples.
+ */
+#define VA_FOURCC_P012          0x32313050
 /** P016: two-plane 16-bit YUV 4:2:0.
  *
  * Each sample is a two-byte little-endian value.  The first plane contains Y, the second
@@ -3962,6 +4176,14 @@ VAStatus vaQuerySurfaceError(
  * 10-bit Pixel BGR formats.
  */
 #define VA_FOURCC_A2B10G10R10   0x30334241 /* VA_FOURCC('A','B','3','0') */
+/**
+ * 10-bit Pixel RGB formats without alpha.
+ */
+#define VA_FOURCC_X2R10G10B10   0x30335258 /* VA_FOURCC('X','R','3','0') */
+/**
+ * 10-bit Pixel BGR formats without alpha.
+ */
+#define VA_FOURCC_X2B10G10R10   0x30334258 /* VA_FOURCC('X','B','3','0') */
 
 /** Y8: 8-bit greyscale.
  *
@@ -4573,6 +4795,7 @@ typedef struct _VAPictureHEVC
 #include <va/va_dec_jpeg.h>
 #include <va/va_dec_vp8.h>
 #include <va/va_dec_vp9.h>
+#include <va/va_dec_av1.h>
 #include <va/va_enc_hevc.h>
 #include <va/va_fei_hevc.h>
 #include <va/va_enc_h264.h>
