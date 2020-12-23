@@ -57,7 +57,8 @@
 #define CHECK_STRING(s, ctx, var) if (!va_checkString(dpy, ctx->str_##var, #var)) s = VA_STATUS_ERROR_UNKNOWN;
 
 #ifdef STATIC_DRIVER
-extern VADriverInit __vaDriverInit_1_10;
+extern VADriverInit __vaDriverInit_i915;
+extern VADriverInit __vaDriverInit_iHD;
 #endif
 
 /*
@@ -498,8 +499,6 @@ static VAStatus va_openDriver(VADisplay dpy, char *driver_name)
                                 driver_path, init_func_s);
                 dlclose(handle);
             } else {
-#else
-                VADriverInit init_func = (VADriverInit)&__vaDriverInit_1_10;
 #endif
                 struct VADriverVTable *vtable = ctx->vtable;
                 struct VADriverVTableVPP *vtable_vpp = ctx->vtable_vpp;
@@ -521,8 +520,16 @@ static VAStatus va_openDriver(VADisplay dpy, char *driver_name)
                 }
                 ctx->vtable_vpp = vtable_vpp;
 
+#ifndef STATIC_DRIVER
                 if (init_func && VA_STATUS_SUCCESS == vaStatus)
                     vaStatus = (*init_func)(ctx);
+#else
+                if (VA_STATUS_SUCCESS == vaStatus) {
+                    vaStatus = __vaDriverInit_i915(ctx);
+                    if (VA_STATUS_SUCCESS != vaStatus)
+                        vaStatus = __vaDriverInit_iHD(ctx);
+                }
+#endif
 
                 if (VA_STATUS_SUCCESS == vaStatus) {
                     CHECK_MAXIMUM(vaStatus, ctx, profiles);
