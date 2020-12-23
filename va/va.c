@@ -525,9 +525,12 @@ static VAStatus va_openDriver(VADisplay dpy, char *driver_name)
                     vaStatus = (*init_func)(ctx);
 #else
                 if (VA_STATUS_SUCCESS == vaStatus) {
-                    vaStatus = __vaDriverInit_i915(ctx);
-                    if (VA_STATUS_SUCCESS != vaStatus)
-                        vaStatus = __vaDriverInit_iHD(ctx);
+                    VADriverInit init_func = (VADriverInit)&__vaDriverInit_i915;
+                    vaStatus = (*init_func)(ctx);
+                    if (VA_STATUS_SUCCESS != vaStatus) {
+                        init_func = (VADriverInit)&__vaDriverInit_iHD;
+                        vaStatus = (*init_func)(ctx);
+                    }
                 }
 #endif
 
