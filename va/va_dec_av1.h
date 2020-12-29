@@ -38,6 +38,26 @@
 extern "C" {
 #endif
 
+/** Attribute value for VAConfigAttribDecAV1Features.
+ *
+ * This attribute decribes the supported features of a AV1
+ * decoder configuration.
+ *
+ */
+typedef union VAConfigAttribValDecAV1Features {
+    struct {
+        /** large scale tile
+         *
+         * This conveys whether AV1 large scale tile is supported by HW.
+         * 0 - unsupported, 1 - supported.
+         */
+        uint32_t lst_support     : 2;
+        /* Reserved for future use. */
+        uint32_t reserved        : 30;
+    } bits;
+    uint32_t value;
+} VAConfigAttribValDecAV1Features;
+
 /**
  * \brief AV1 Decoding Picture Parameter Buffer Structure
  *
@@ -463,13 +483,13 @@ typedef struct  _VADecPictureParameterBufferAV1
 
     /** \brief The adjustment needed for the filter level based on
      *  the chosen reference frame.
-     *  value range [-63..63].
+     *  value range [-64..63].
      */
     int8_t                  ref_deltas[8];
 
     /** \brief The adjustment needed for the filter level based on
      *  the chosen mode.
-     *  value range [-63..63].
+     *  value range [-64..63].
      */
     int8_t                  mode_deltas[2];
 
@@ -480,23 +500,23 @@ typedef struct  _VADecPictureParameterBufferAV1
      */
     uint8_t                base_qindex;
     /** \brief Y DC delta from Y AC
-     *  value range [-63..63]
+     *  value range [-64..63]
      */
     int8_t                  y_dc_delta_q;
     /** \brief U DC delta from Y AC
-     *  value range [-63..63]
+     *  value range [-64..63]
      */
     int8_t                  u_dc_delta_q;
     /** \brief U AC delta from Y AC
-     *  value range [-63..63]
+     *  value range [-64..63]
      */
     int8_t                  u_ac_delta_q;
     /** \brief V DC delta from Y AC
-     *  value range [-63..63]
+     *  value range [-64..63]
      */
     int8_t                  v_dc_delta_q;
     /** \brief V AC delta from Y AC
-     *  value range [-63..63]
+     *  value range [-64..63]
      */
     int8_t                  v_ac_delta_q;
 
@@ -563,6 +583,21 @@ typedef struct  _VADecPictureParameterBufferAV1
     uint8_t                 cdef_damping_minus_3;
     /*  value range [0..3]  */
     uint8_t                 cdef_bits;
+
+    /** Encode cdef strength:
+     *
+     * The cdef_y_strengths[] and cdef_uv_strengths[] are expected to be packed
+     * with both primary and secondary strength. The secondary strength is
+     * given in the lower two bits and the primary strength is given in the next
+     * four bits.
+     *
+     * cdef_y_strengths[] & cdef_uv_strengths[] should be derived as:
+     * (cdef_y_strengths[]) = (cdef_y_pri_strength[] << 2) | (cdef_y_sec_strength[] & 0x03)
+     * (cdef_uv_strengths[]) = (cdef_uv_pri_strength[] << 2) | (cdef_uv_sec_strength[] & 0x03)
+     * In which, cdef_y_pri_strength[]/cdef_y_sec_strength[]/cdef_uv_pri_strength[]/cdef_uv_sec_strength[]
+     * are variables defined in AV1 Spec 5.9.19. The cdef_y_strengths[] & cdef_uv_strengths[]
+     * are corresponding to LIBAOM variables cm->cdef_strengths[] & cm->cdef_uv_strengths[] respectively.
+     */
     /*  value range [0..63]  */
     uint8_t                 cdef_y_strengths[8];
     /*  value range [0..63]  */

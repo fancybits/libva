@@ -130,6 +130,93 @@ extern "C" {
  * 	- \ref api_fei
  * 	- \ref api_fei_h264
  * 	- \ref api_fei_hevc
+ * 
+ * \section threading Multithreading Guide
+ * All VAAPI functions implemented in libva are thread-safe. For any VAAPI
+ * function that requires the implementation of a backend (e.g. hardware driver),
+ * the backend must ensure that its implementation is also thread-safe. If the
+ * backend implementation of a VAAPI function is not thread-safe then this should
+ * be considered as a bug against the backend implementation. 
+ *
+ * It is assumed that none of the VAAPI functions will be called from signal 
+ * handlers.
+ *
+ * Thread-safety in this context means that when VAAPI is being called by multiple
+ * concurrent threads, it will not crash or hang the OS, and VAAPI internal
+ * data structures will not be corrupted. When multiple threads are operating on
+ * the same VAAPI objects, it is the application's responsibility to synchronize
+ * these operations in order to generate the expected results. For example, using
+ * a single VAContext from multiple threads may generate unexpected results.
+ *
+ * Following pseudo code illustrates a multithreaded transcoding scenario, where
+ * one thread is handling the decoding operation and another thread is handling 
+ * the encoding operation, while synchronizing the use of a common pool of
+ * surfaces.
+ *
+ * // Initialization
+ * dpy = vaGetDisplayDRM(fd);
+ * vaInitialize(dpy, ...); 
+ *
+ * // Create surfaces required for decoding and subsequence encoding
+ * vaCreateSurfaces(dpy, VA_RT_FORMAT_YUV420, width, height, &surfaces[0], ...);
+ *
+ * // Set up a queue for the surfaces shared between decode and encode threads
+ * surface_queue = queue_create();
+ *
+ * // Create decode_thread
+ * pthread_create(&decode_thread, NULL, decode, ...);
+ *
+ * // Create encode_thread
+ * pthread_create(&encode_thread, NULL, encode, ...);
+ *
+ * // Decode thread function
+ * decode() {
+ *   // Find the decode entrypoint for H.264 
+ *   vaQueryConfigEntrypoints(dpy, h264_profile, entrypoints, ...);
+ *
+ *   // Create a config for H.264 decode
+ *   vaCreateConfig(dpy, h264_profile, VAEntrypointVLD, ...);
+ *
+ *   // Create a context for decode
+ *   vaCreateContext(dpy, config, width, height, VA_PROGRESSIVE, surfaces, 
+ *     num_surfaces, &decode_context); 
+ *
+ *   // Decode frames in the bitstream
+ *   for (;;) {
+ *     // Parse one frame and decode 
+ *     vaBeginPicture(dpy, decode_context, surfaces[surface_index]); 
+ *     vaRenderPicture(dpy, decode_context, buf, ...);
+ *     vaEndPicture(dpy, decode_context);
+ *     // Poll the decoding status and enqueue the surface in display order after 
+ *     // decoding is complete
+ *     vaQuerySurfaceStatus();
+ *     enqueue(surface_queue, surface_index);
+ *   }
+ * }
+ *
+ * // Encode thread function
+ * encode() {
+ *   // Find the encode entrypoint for HEVC
+ *   vaQueryConfigEntrypoints(dpy, hevc_profile, entrypoints, ...);
+ *
+ *   // Create a config for HEVC encode
+ *   vaCreateConfig(dpy, hevc_profile, VAEntrypointEncSlice, ...);
+ *
+ *   // Create a context for encode
+ *   vaCreateContext(dpy, config, width, height, VA_PROGRESSIVE, surfaces,
+ *     num_surfaces, &encode_context); 
+ *
+ *   // Encode frames produced by the decoder
+ *   for (;;) {
+ *     // Dequeue the surface enqueued by the decoder    
+ *     surface_index = dequeue(surface_queue);
+ *     // Encode using this surface as the source
+ *     vaBeginPicture(dpy, encode_context, surfaces[surface_index]);
+ *     vaRenderPicture(dpy, encode_context, buf, ...);
+ *     vaEndPicture(dpy, encode_context);
+ *   }
+ * }
+ *
  */
 
 /**
@@ -270,6 +357,17 @@ typedef int VAStatus;	/** Return status type from functions */
 #define VA_PADDING_MEDIUM       8
 #define VA_PADDING_HIGH         16
 #define VA_PADDING_LARGE        32
+
+/** operation options */
+/** synchronization, block call, output should be ready after execution function return*/ 
+#define VA_EXEC_SYNC              0x0
+/** asynchronization,application should call additonal sync operation to access output */
+#define VA_EXEC_ASYNC             0x1
+
+/** operation mode */
+#define VA_EXEC_MODE_DEFAULT      0x0
+#define VA_EXEC_MODE_POWER_SAVING 0x1
+#define VA_EXEC_MODE_PERFORMANCE  0x2
 
 /**
  * Returns a short english description of error_status
@@ -795,6 +893,13 @@ typedef enum
      *  this setting also could be update by \c VAContextParameterUpdateBuffer
      */
     VAConfigAttribContextPriority       = 41,
+    /** \brief AV1 decoding features.  Read-only.
+     *
+     * This attribute describes the supported features of an
+     * AV1 decoder configuration.  The value returned uses the
+     * VAConfigAttribValDecAV1Features type.
+     */
+    VAConfigAttribDecAV1Features    = 42,
     /**@}*/
     VAConfigAttribTypeMax
 } VAConfigAttribType;
@@ -4790,6 +4895,47 @@ typedef struct _VAPictureHEVC
  * NumPocLtCurr.
  */
 #define VA_PICTURE_HEVC_RPS_LT_CURR             0x00000040
+
+typedef enum{
+    VACopyObjectSurface = 0,
+    VACopyObjectBuffer  = 1,
+} VACopyObjectType;
+
+typedef struct _VACopyObject {
+    VACopyObjectType  obj_type;    // type of object.
+    union
+    {
+        VASurfaceID surface_id;
+        VABufferID  buffer_id;
+    } object;
+
+    uint32_t    va_reserved[VA_PADDING_MEDIUM];
+} VACopyObject;
+
+typedef union _VACopyOption{
+    struct {
+        /** \brief va copy synchronization, the value should be /c VA_EXEC_SYNC or /c VA_EXEC_ASYNC */
+        uint32_t va_copy_sync : 2;
+        /** \brief va copy mode, the value should be VA_EXEC_MODE_XXX */
+        uint32_t va_copy_mode : 4;
+        uint32_t reserved     :26;
+    }bits;
+    uint32_t value;
+}VACopyOption;
+
+/** \brief Copies an object.
+ *
+ * Copies specified object (surface or buffer). If non-blocking copy
+ * is requested (VA_COPY_NONBLOCK), then need vaSyncBuffer or vaSyncSurface/vaSyncSurface2
+ * to sync the destination object.
+ *
+ * @param[in] dpy               the VA display
+ * @param[in] dst               Destination object to copy to
+ * @param[in] src               Source object to copy from
+ * @param[in] option            VA copy option
+ * @return VA_STATUS_SUCCESS if successful
+ */
+VAStatus vaCopy(VADisplay dpy, VACopyObject * dst, VACopyObject * src, VACopyOption option);
 
 #include <va/va_dec_hevc.h>
 #include <va/va_dec_jpeg.h>
