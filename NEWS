@@ -1,5 +1,40 @@
-libva NEWS -- summary of user visible changes.  2020-12-03
+libva NEWS -- summary of user visible changes.  2021-09-16
 Copyright (C) 2009-2020 Intel Corporation
+
+version 2.13.0 - 16.Sep.2021
+* fix:Check the function pointer before using
+* code style:unify the code styles using the style_unify script
+* doc:Fix av1 dec doc page link issue
+* add:(sep_layer) add new surface format fourcc XYUV
+
+version 2.12.0 - 17.Jun.2021
+* add: Report the capability of vaCopy support
+* add: Report the capability of sub device
+* add: Add config attributes to advertise HEVC/H.265 encoder features
+* add: Video processing HVS Denoise: Added 4 modes
+* add: Introduce VASurfaceAttribDRMFormatModifiers
+* add: Add 3DLUT Filter in Video Processing.
+* doc: Update log2_tile_column description for vp9enc
+* trace: Correct av1 film grain trace information
+* ci: Fix freebsd build by switching to vmactions/freebsd-vm@v0.1.3
+
+version 2.11.0 - 23.Mar.2021
+* add: LibVA Protected Content API
+* add: Add a configuration attribute to advertise AV1d LST feature
+* fix: wayland: don't try to authenticate with render nodes
+* autotools: use shell grouping instead of sed to prepend a line
+* trace: Add details data dump for mpeg2 IQ matrix.
+* doc: update docs for VASurfaceAttribPixelFormat
+* doc: Libva documentation edit for AV1 reference frames
+* doc: Modify AV1 frame_width_minus1 and frame_height_minus1 comment
+* doc: Remove tile_rows and tile_cols restriction to match AV1 spec
+* doc: Format code for doxygen output
+* doc: AV1 decode documentation edit for superres_scale_denominator
+* ci: upgrade FreeBSD to 12.2
+* ci: disable travis build
+* ci: update cache before attempting to install packages
+* ci: avoid running workloads on other workloads changes
+* ci: enable github actions
 
 version 2.10.0 - 04.Dec.2020
 * add: Pass offset and size of pred_weight_table

@@ -253,6 +253,8 @@ typedef enum _VAProcFilterType {
     VAProcFilterHVSNoiseReduction,
     /** \brief High Dynamic Range Tone Mapping. */
     VAProcFilterHighDynamicRangeToneMapping,
+    /** \brief Three-Dimensional Look Up Table (3DLUT). */
+    VAProcFilter3DLUT,
     /** \brief Number of video filters. */
     VAProcFilterCount
 } VAProcFilterType;
@@ -526,7 +528,7 @@ typedef struct _VABlendState {
 /** @name Pipeline end flags */
 /**@{*/
 /** \brief Specifies the pipeline is the last. */
-#define VA_PIPELINE_FLAG_END		0x00000004
+#define VA_PIPELINE_FLAG_END        0x00000004
 /**@}*/
 
 /** @name Chroma Siting flag */
@@ -656,11 +658,11 @@ typedef struct _VAProcPipelineCaps {
     /** \brief Min supported output height in pixels. */
     uint32_t        min_output_height;
     /** \brief Reserved bytes for future use, must be zero */
-    #if defined(__AMD64__) || defined(__x86_64__) || defined(__amd64__) || defined(__LP64__)
+#if defined(__AMD64__) || defined(__x86_64__) || defined(__amd64__) || defined(__LP64__)
     uint32_t        va_reserved[VA_PADDING_HIGH - 2];
-    #else
+#else
     uint32_t        va_reserved[VA_PADDING_HIGH];
-    #endif
+#endif
 } VAProcPipelineCaps;
 
 /** \brief Specification of values supported by the filter. */
@@ -760,8 +762,7 @@ typedef struct _VAProcColorProperties {
  *  2) the display on which the content will be presented. If it is for display, max_content_light_level
  *  and max_pic_average_light_level are ignored.
  */
-typedef struct _VAHdrMetaDataHDR10
-{
+typedef struct _VAHdrMetaDataHDR10 {
     /**
      * \brief X chromaticity coordinate of the mastering display.
      *
@@ -770,7 +771,7 @@ typedef struct _VAHdrMetaDataHDR10
      * Index value c equal to 2 should correspond to the red primary.
      * The value for display_primaries_x shall be in the range of 0 to 50000 inclusive.
      */
-    uint16_t	display_primaries_x[3];
+    uint16_t    display_primaries_x[3];
     /**
      * \brief Y chromaticity coordinate of the mastering display.
      *
@@ -779,19 +780,19 @@ typedef struct _VAHdrMetaDataHDR10
      * Index value c equal to 2 should correspond to the red primary.
      * The value for display_primaries_y shall be in the range of 0 to 50000 inclusive.
      */
-    uint16_t	display_primaries_y[3];
+    uint16_t    display_primaries_y[3];
     /**
      * \brief X chromaticity coordinate of the white point of the mastering display.
      *
      * The value for white_point_x shall be in the range of 0 to 50000 inclusive.
      */
-    uint16_t	white_point_x;
+    uint16_t    white_point_x;
     /**
      * \brief Y chromaticity coordinate of the white point of the mastering display.
      *
      * The value for white_point_y shall be in the range of 0 to 50000 inclusive.
      */
-    uint16_t	white_point_y;
+    uint16_t    white_point_y;
     /**
      * \brief The maximum display luminance of the mastering display.
      *
@@ -837,8 +838,7 @@ typedef struct _VAProcFilterCapHighDynamicRange {
 } VAProcFilterCapHighDynamicRange;
 
 /** \brief High Dynamic Range Meta Data. */
-typedef struct _VAHdrMetaData
-{
+typedef struct _VAHdrMetaData {
     /** \brief high dynamic range metadata type, HDR10 etc. */
     VAProcHighDynamicRangeMetadataType       metadata_type;
     /**
@@ -1059,7 +1059,7 @@ typedef struct _VAProcPipelineParameterBuffer {
      * bit0~3: Surface sample type
      * - 0000: Progressive --> VA_FRAME_PICTURE
      * - 0001: Single Top Field --> VA_TOP_FIELD
-     * - 0010: Single Bottom Field --> VA_BOTTOM_FIELD  
+     * - 0010: Single Bottom Field --> VA_BOTTOM_FIELD
      * - 0100: Interleaved Top Field First --> VA_TOP_FIELD_FIRST
      * - 1000: Interleaved Bottom Field First --> VA_BOTTOM_FIELD_FIRST
      *
@@ -1081,11 +1081,11 @@ typedef struct _VAProcPipelineParameterBuffer {
      *   -- set backward_reference with the second field surface id
      *   -- set input_surface_flag as VA_TOP_FIELD
      *   -- set output_surface_flag as VA_TOP_FIELD_FIRST
-     * - 4. Field to Field: 
+     * - 4. Field to Field:
      *   -- set flag according to each frame.
      *
      * bit31: Surface encryption
-     * - 0: non-protected  
+     * - 0: non-protected
      * - 1: protected
      *
      * bit4~30 for future
@@ -1097,12 +1097,12 @@ typedef struct _VAProcPipelineParameterBuffer {
      * bit0~3: Surface sample type
      * - 0000: Progressive --> VA_FRAME_PICTURE
      * - 0001: Top Field --> VA_TOP_FIELD
-     * - 0010: Bottom Field --> VA_BOTTOM_FIELD  
+     * - 0010: Bottom Field --> VA_BOTTOM_FIELD
      * - 0100: Top Field First --> VA_TOP_FIELD_FIRST
      * - 1000: Bottom Field First --> VA_BOTTOM_FIELD_FIRST
      *
      * bit31: Surface encryption
-     * - 0: non-protected  
+     * - 0: non-protected
      * - 1: protected
      *
      * bit4~30 for future
@@ -1128,11 +1128,11 @@ typedef struct _VAProcPipelineParameterBuffer {
     VAHdrMetaData          *output_hdr_metadata;
 
     /** \brief Reserved bytes for future use, must be zero */
-    #if defined(__AMD64__) || defined(__x86_64__) || defined(__amd64__)|| defined(__LP64__)
+#if defined(__AMD64__) || defined(__x86_64__) || defined(__amd64__)|| defined(__LP64__)
     uint32_t                va_reserved[VA_PADDING_LARGE - 16];
-    #else
+#else
     uint32_t                va_reserved[VA_PADDING_LARGE - 13];
-    #endif
+#endif
 } VAProcPipelineParameterBuffer;
 
 /**
@@ -1165,27 +1165,27 @@ typedef struct _VAProcFilterParameterBuffer {
 
 /** @name De-interlacing flags */
 /**@{*/
-/** 
- * \brief Bottom field first in the input frame. 
+/**
+ * \brief Bottom field first in the input frame.
  * if this is not set then assumes top field first.
  */
-#define VA_DEINTERLACING_BOTTOM_FIELD_FIRST	0x0001
-/** 
- * \brief Bottom field used in deinterlacing. 
+#define VA_DEINTERLACING_BOTTOM_FIELD_FIRST 0x0001
+/**
+ * \brief Bottom field used in deinterlacing.
  * if this is not set then assumes top field is used.
  */
-#define VA_DEINTERLACING_BOTTOM_FIELD		0x0002
-/** 
- * \brief A single field is stored in the input frame. 
+#define VA_DEINTERLACING_BOTTOM_FIELD       0x0002
+/**
+ * \brief A single field is stored in the input frame.
  * if this is not set then assumes the frame contains two interleaved fields.
  */
-#define VA_DEINTERLACING_ONE_FIELD		0x0004
+#define VA_DEINTERLACING_ONE_FIELD      0x0004
 /**
  * \brief Film Mode Detection is enabled. If enabled, driver performs inverse
  * of various pulldowns, such as 3:2 pulldown.
  * if this is not set then assumes FMD is disabled.
  */
-#define VA_DEINTERLACING_FMD_ENABLE		0x0008
+#define VA_DEINTERLACING_FMD_ENABLE     0x0008
 
 //Scene change parameter for ADI on Linux, if enabled, driver use spatial DI(Bob), instead of ADI. if not, use old behavior for ADI
 //Input stream is TFF(set flags = 0), SRC0,1,2,3 are interlaced frame (top +bottom fields), DSTs are progressive frames
@@ -1218,7 +1218,7 @@ typedef struct _VAProcFilterParameterBufferDeinterlacing {
     /** \brief Deinterlacing algorithm. */
     VAProcDeinterlacingType     algorithm;
     /** \brief Deinterlacing flags. */
-    uint32_t     		flags;
+    uint32_t            flags;
 
     /** \brief Reserved bytes for future use, must be zero */
     uint32_t                va_reserved[VA_PADDING_LOW];
@@ -1272,7 +1272,7 @@ typedef struct _VAProcFilterParameterBufferColorBalance {
     /**
      * \brief Color balance value.
      *
-     * Special case for automatically adjusted attributes. e.g. 
+     * Special case for automatically adjusted attributes. e.g.
      * #VAProcColorBalanceAutoSaturation,
      * #VAProcColorBalanceAutoBrightness,
      * #VAProcColorBalanceAutoContrast.
@@ -1298,6 +1298,30 @@ typedef struct _VAProcFilterParameterBufferTotalColorCorrection {
     float                             value;
 } VAProcFilterParameterBufferTotalColorCorrection;
 
+/** @name Video Processing Human Vision System (HVS) Denoise Mode.*/
+/**@{*/
+/**
+ *  \brief Default Mode.
+ *  This mode is decided in driver to the appropriate mode.
+ */
+#define VA_PROC_HVS_DENOISE_DEFAULT               0x0000
+/**
+ *  \brief Auto BDRate Mode.
+ *  Indicates auto BD rate improvement in pre-processing (such as before video encoding), ignore Strength.
+ */
+#define VA_PROC_HVS_DENOISE_AUTO_BDRATE           0x0001
+/**
+ *  \brief Auto Subjective Mode.
+ *  Indicates auto subjective quality improvement in pre-processing (such as before video encoding), ignore Strength.
+ */
+#define VA_PROC_HVS_DENOISE_AUTO_SUBJECTIVE       0x0002
+/**
+ *  \brief Manual Mode.
+ *  Indicates manual mode, allow to adjust the denoise strength manually (need to set Strength explicitly).
+ */
+#define VA_PROC_HVS_DENOISE_MANUAL                0x0003
+/**@}*/
+
 /** \brief Human Vision System(HVS) Noise reduction filter parametrization. */
 typedef struct _VAProcFilterParameterBufferHVSNoiseReduction {
     /** \brief Filter type. Shall be set to #VAProcFilterHVSNoiseReduction. */
@@ -1313,8 +1337,14 @@ typedef struct _VAProcFilterParameterBufferHVSNoiseReduction {
      *  Value 10 is the default value.
      */
     uint16_t            strength;
+    /**
+     *  \brief HVS Denoise Mode which controls denoise method.
+     *  It is a value of VA_PROC_HVS_DENOISE_xxx.
+     *  Please see the definition of VA_PROC_HVS_DENOISE_xxx.
+     */
+    uint16_t            mode;
     /** \brief Reserved bytes for future use, must be zero */
-    uint16_t            va_reserved[VA_PADDING_HIGH];
+    uint16_t            va_reserved[VA_PADDING_HIGH - 1];
 } VAProcFilterParameterBufferHVSNoiseReduction;
 
 /** \brief High Dynamic Range(HDR) Tone Mapping filter parametrization. */
@@ -1332,6 +1362,90 @@ typedef struct _VAProcFilterParameterBufferHDRToneMapping {
     /** \brief Reserved bytes for future use, must be zero */
     uint32_t            va_reserved[VA_PADDING_HIGH];
 } VAProcFilterParameterBufferHDRToneMapping;
+
+/** @name 3DLUT Channel Layout and Mapping */
+/**@{*/
+/** \brief 3DLUT Channel Layout is unknown. */
+#define VA_3DLUT_CHANNEL_UNKNOWN              0x00000000
+/** \brief 3DLUT Channel Layout is R, G, B, the default layout. Map RGB to RGB. */
+#define VA_3DLUT_CHANNEL_RGB_RGB              0x00000001
+/** \brief 3DLUT Channel Layout is Y, U, V. Map YUV to RGB. */
+#define VA_3DLUT_CHANNEL_YUV_RGB              0x00000002
+/** \brief 3DLUT Channel Layout is V, U, Y. Map VUY to RGB. */
+#define VA_3DLUT_CHANNEL_VUY_RGB              0x00000004
+/**@}*/
+
+/**
+  *  \brief 3DLUT filter parametrization.
+  *
+  *  3DLUT (Three Dimensional Look Up Table) is often used when converting an image or a video frame
+  *  from one color representation to another, for example, when converting log and gamma encodings,
+  *  changing the color space, applying a color correction, changing the dynamic range, gamut mapping etc.
+  *
+  *  This buffer defines 3DLUT attributes and memory layout. The typical 3DLUT has fixed number(lut_size)
+  *  per dimension and memory layout is 3 dimensional array as 3dlut[stride_0][stride_1][stride_2] (lut_size
+  *  shall be smaller than stride_0/1/2).
+  *
+  *  API user should query hardware capability by using the VAProcFilterCap3DLUT to get the 3DLUT attributes
+  *  which hardware supports, and use these attributes. For example, if the user queries hardware, the API user
+  *  could get caps with 3dlut[33][33][64] (lut_size = 33, lut_stride[0/1/2] = 33/33/64). API user shall not
+  *  use the attributes which hardware can not support.
+  *
+  *  3DLUT is usually used to transform input RGB/YUV values in one color space to output RGB values in another
+  *  color space. Based on 1) the format and color space of VPP input and output and 2) 3DLUT memory layout and
+  *  channel mapping, driver will enable some color space conversion implicitly if needed. For example, the input of
+  *  VPP is P010 format in BT2020 color space, the output of VPP is NV12 in BT709 color space and the 3DLUT channel
+  *  mapping is VA_3DLUT_CHANNEL_RGB_RGB, driver could build the data pipeline as P010(BT2020)->RGB(BT2020)
+  *  ->3DULT(BT709)->NV12(BT709). Please note, the limitation of 3DLUT filter color space is that the color space of
+  *  3DLUT filter input data needs to be same as the input data of VPP; the color space of 3DLUT filter output data
+  *  needs to be same as the output data of VPP; format does not have such limitation.
+  */
+typedef struct _VAProcFilterParameterBuffer3DLUT {
+    /** \brief Filter type. Shall be set to #VAProcFilter3DLUT.*/
+    VAProcFilterType    type;
+
+    /** \brief lut_surface contains 3DLUT data in the 3DLUT memory layout, must be linear */
+    VASurfaceID         lut_surface;
+    /**
+      * \brief lut_size is the number of valid points on every dimension of the three dimensional look up table.
+      * The size of LUT (lut_size) shall be same among every dimension of the three dimensional look up table.
+      * The size of LUT (lut_size) shall be smaller than lut_stride[0/1/2].
+      */
+    uint16_t            lut_size;
+    /**
+      *  \brief lut_stride are the number of points on every dimension of the three dimensional look up table.
+      *  Three dimension can has 3 different stride, lut3d[lut_stride[0]][lut_stride[1]][lut_stride[2]].
+      *  But the valid point shall start from 0, the range of valid point is [0, lut_size-1] for every dimension.
+      */
+    uint16_t            lut_stride[3];
+    /** \brief bit_depth is the number of bits for every channel R, G or B (or Y, U, V) */
+    uint16_t            bit_depth;
+    /** \brief num_channel is the number of channels */
+    uint16_t            num_channel;
+
+    /** \brief channel_mapping defines the mapping of input and output channels, could be one of VA_3DLUT_CHANNEL_XXX*/
+    uint32_t            channel_mapping;
+
+    /** \brief reserved bytes for future use, must be zero */
+    uint32_t            va_reserved[VA_PADDING_HIGH];
+} VAProcFilterParameterBuffer3DLUT;
+
+/** \brief Capabilities specification for the 3DLUT filter. */
+typedef struct _VAProcFilterCap3DLUT {
+    /** \brief lut_size is the number of valid points on every dimension of the three dimensional look up table. */
+    uint16_t            lut_size;
+    /**  \brief lut_stride are the number of points on every dimension of the three dimensional look up table. lut3d[lut_stride[0]][lut_stride[1]][lut_stride[2]]*/
+    uint16_t            lut_stride[3];
+    /** \brief bit_depth is the number of bits for every channel R, G or B (or Y, U, V) */
+    uint16_t            bit_depth;
+    /** \brief num_channel is the number of channels */
+    uint16_t            num_channel;
+    /** \brief channel_mapping defines the mapping of channels, could be some combination of VA_3DLUT_CHANNEL_XXX*/
+    uint32_t            channel_mapping;
+
+    /** \brief Reserved bytes for future use, must be zero */
+    uint32_t            va_reserved[VA_PADDING_HIGH];
+} VAProcFilterCap3DLUT;
 
 /**
  * \brief Default filter cap specification (single range value).

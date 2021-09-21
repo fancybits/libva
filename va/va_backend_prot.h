@@ -1,7 +1,5 @@
 /*
- * va_drm.h - Raw DRM API
- *
- * Copyright (c) 2012 Intel Corporation. All Rights Reserved.
+ * Copyright (c) 2020 Intel Corporation. All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the
@@ -24,38 +22,60 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef VA_DRM_H
-#define VA_DRM_H
+#ifndef VA_BACKEND_PROT_H
+#define VA_BACKEND_PROT_H
 
-#include <va/va.h>
-
-/**
- * \file va_drm.h
- * \brief The raw DRM API
- *
- * This file contains the \ref api_drm "Raw DRM API".
- */
+#include <va/va_prot.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/**
- * \brief Returns a VA display derived from the specified DRM connection.
- *
- * This function returns a (possibly cached) VA display from the
- * specified DRM connection @fd.
- *
- * @param[in]   fd      the DRM connection descriptor
- * @return the VA display
- */
-VADisplay
-vaGetDisplayDRM(int fd);
+/** \brief VTable version for VA/PROTECTION hooks. */
+#define VA_DRIVER_VTABLE_PROT_VERSION 1
 
-/**@}*/
+struct VADriverVTableProt {
+    unsigned int            version;
+
+    VAStatus
+    (*vaCreateProtectedSession)(
+        VADriverContextP ctx,
+        VAConfigID config_id,
+        VAProtectedSessionID *protected_session
+    );
+
+    VAStatus
+    (*vaDestroyProtectedSession)(
+        VADriverContextP ctx,
+        VAProtectedSessionID protected_session
+    );
+
+    VAStatus
+    (*vaAttachProtectedSession)(
+        VADriverContextP ctx,
+        VAContextID context,
+        VAProtectedSessionID protected_session
+    );
+
+    VAStatus
+    (*vaDetachProtectedSession)(
+        VADriverContextP ctx,
+        VAContextID context
+    );
+
+    VAStatus
+    (*vaProtectedSessionExecute)(
+        VADriverContextP ctx,
+        VAProtectedSessionID protected_session,
+        VABufferID buf_id
+    );
+
+    /** \brief Reserved bytes for future use, must be zero */
+    unsigned long reserved[VA_PADDING_MEDIUM];
+};
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* VA_DRM_H */
+#endif /* VA_BACKEND_PROT_H */

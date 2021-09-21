@@ -38,6 +38,14 @@
 extern "C" {
 #endif
 
+/**
+ * \defgroup api_dec_av1 AV1 decoding API
+ *
+ * This AV1 decoding API supports 8-bit/10bit 420 format only.
+ *
+ * @{
+ */
+
 /** Attribute value for VAConfigAttribDecAV1Features.
  *
  * This attribute decribes the supported features of a AV1
@@ -72,13 +80,13 @@ typedef union VAConfigAttribValDecAV1Features {
 typedef struct _VASegmentationStructAV1 {
     union {
         struct {
-             /** Indicates whether segmentation map related syntax elements
-             *  are present or not for current frame. If equal to 0,
-             *  the segmentation map related syntax elements are
-             *  not present for the current frame and the control flags of
-             *  segmentation map related tables feature_data[][], and
-             *  feature_mask[] are not valid and shall be ignored by accelerator.
-             */
+            /** Indicates whether segmentation map related syntax elements
+            *  are present or not for current frame. If equal to 0,
+            *  the segmentation map related syntax elements are
+            *  not present for the current frame and the control flags of
+            *  segmentation map related tables feature_data[][], and
+            *  feature_mask[] are not valid and shall be ignored by accelerator.
+            */
             uint32_t         enabled                                     : 1;
             /** Value 1 indicates that the segmentation map are updated
              *  during the decoding of this frame.
@@ -205,7 +213,7 @@ typedef enum {
     VAAV1TransformationCount
 } VAAV1TransformationType;
 
-typedef struct _VAWarpedMotionParamsAV1{
+typedef struct _VAWarpedMotionParamsAV1 {
 
     /** \brief Specify the type of warped motion */
     VAAV1TransformationType  wmtype;
@@ -232,8 +240,7 @@ typedef struct _VAWarpedMotionParamsAV1{
  * per frame.
  *
  */
-typedef struct  _VADecPictureParameterBufferAV1
-{
+typedef struct  _VADecPictureParameterBufferAV1 {
     /**@{*/
 
     /** \brief sequence level information
@@ -325,7 +332,6 @@ typedef struct  _VADecPictureParameterBufferAV1
     /** \brief Picture resolution minus 1
      *  Picture original resolution. If SuperRes is enabled,
      *  this is the upscaled resolution.
-     *  The value may not be multiple of 8.
      *  value range [0..65535]
      */
     uint16_t                frame_width_minus1;
@@ -342,7 +348,7 @@ typedef struct  _VADecPictureParameterBufferAV1
      *
      *  Contains a list of uncompressed frame buffer surface indices as references.
      *  Application needs to make sure all the entries point to valid frames
-     *  except for the key frame by checking ref_frame_id[]. If missing frame
+     *  except for intra frames by checking ref_frame_id[]. If missing frame
      *  is identified, application may choose to perform error recovery by
      *  pointing problematic index to an alternative frame buffer.
      *  Driver is not responsible to validate reference frames' id.
@@ -354,10 +360,10 @@ typedef struct  _VADecPictureParameterBufferAV1
      *  Contains a list of indices into ref_frame_map[8].
      *  It specifies the reference frame correspondence.
      *  The indices of the array are defined as [LAST_FRAME – LAST_FRAME,
-     *  LAST2_FRAME – LAST_FRAME, …, ALTREF2_FRAME – LAST_FRAME], where each
+     *  LAST2_FRAME – LAST_FRAME, …, ALTREF_FRAME – LAST_FRAME], where each
      *  symbol is defined as:
      *  enum{INTRA_FRAME = 0, LAST_FRAME, LAST2_FRAME, LAST3_FRAME, GOLDEN_FRAME,
-     *  BWDREF_FRAME, ALTREF_FRAME};
+     *  BWDREF_FRAME, ALTREF2_FRAME, ALTREF_FRAME};
      */
     uint8_t                 ref_frame_idx[7];
 
@@ -376,8 +382,7 @@ typedef struct  _VADecPictureParameterBufferAV1
     VAFilmGrainStructAV1    film_grain_info;
 
     /** \brief tile structure
-     *  When uniform_tile_spacing_flag == 1, the value of tile_cols and
-     *  tile_rows need to be power of 2, and width_in_sbs_minus_1[] and
+     *  When uniform_tile_spacing_flag == 1, width_in_sbs_minus_1[] and
      *  height_in_sbs_minus_1[] should be ignored, which will be generated
      *  by driver based on tile_cols and tile_rows.
      */
@@ -401,23 +406,21 @@ typedef struct  _VADecPictureParameterBufferAV1
     /* specify the tile index for context updating */
     uint16_t                context_update_tile_id;
 
-    union
-    {
-        struct
-        {
+    union {
+        struct {
             /** \brief flags for current picture
              *  same syntax and semantic as those in AV1 code
              */
 
-             /** \brief Frame Type
-              *  0:     KEY_FRAME;
-              *  1:     INTER_FRAME;
-              *  2:     INTRA_ONLY_FRAME;
-              *  3:     SWITCH_FRAME
-              *  For SWITCH_FRAME, application shall set error_resilient_mode = 1,
-              *  refresh_frame_flags, etc. appropriately. And driver will convert it
-              *  to INTER_FRAME.
-              */
+            /** \brief Frame Type
+             *  0:     KEY_FRAME;
+             *  1:     INTER_FRAME;
+             *  2:     INTRA_ONLY_FRAME;
+             *  3:     SWITCH_FRAME
+             *  For SWITCH_FRAME, application shall set error_resilient_mode = 1,
+             *  refresh_frame_flags, etc. appropriately. And driver will convert it
+             *  to INTER_FRAME.
+             */
             uint32_t        frame_type                                  : 2;
             uint32_t        show_frame                                  : 1;
             uint32_t        showable_frame                              : 1;
@@ -444,7 +447,8 @@ typedef struct  _VADecPictureParameterBufferAV1
     } pic_info_fields;
 
     /** \brief Supper resolution scale denominator.
-     *  value range [9..16]
+     *  When use_superres=1, superres_scale_denominator must be in the range [9..16].
+     *  When use_superres=0, superres_scale_denominator must be 8.
      */
     uint8_t                 superres_scale_denominator;
 
@@ -464,10 +468,8 @@ typedef struct  _VADecPictureParameterBufferAV1
     uint8_t                 filter_level_u;
     uint8_t                 filter_level_v;
 
-    union
-    {
-        struct
-        {
+    union {
+        struct {
             /** \brief flags for reference pictures
              *  same syntax and semantic as those in AV1 code
              */
@@ -522,10 +524,8 @@ typedef struct  _VADecPictureParameterBufferAV1
 
     /** \brief quantization_matrix
      */
-    union
-    {
-        struct
-        {
+    union {
+        struct {
             uint16_t        using_qmatrix                               : 1;
             /** \brief qm level
              *  value range [0..15]
@@ -541,10 +541,8 @@ typedef struct  _VADecPictureParameterBufferAV1
         uint16_t            value;
     } qmatrix_fields;
 
-    union
-    {
-        struct
-        {
+    union {
+        struct {
             /** \brief delta_q parameters
              */
             uint32_t        delta_q_present_flag                        : 1;
@@ -605,10 +603,8 @@ typedef struct  _VADecPictureParameterBufferAV1
 
     /** \brief loop restoration parameters
      */
-    union
-    {
-        struct
-        {
+    union {
+        struct {
             uint16_t        yframe_restoration_type                     : 2;
             uint16_t        cbframe_restoration_type                    : 2;
             uint16_t        crframe_restoration_type                    : 2;
@@ -648,8 +644,7 @@ typedef struct  _VADecPictureParameterBufferAV1
  * per tile information. And the bit stream in sent to driver in per
  * tile granularity.
  */
-typedef struct _VASliceParameterBufferAV1
-{
+typedef struct _VASliceParameterBufferAV1 {
     /**@{*/
     /** \brief The byte count of current tile in the bitstream buffer,
      *  starting from first byte of the buffer.
