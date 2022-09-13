@@ -12,7 +12,6 @@ version_file = configure_file(
 libva_sources = [
   'va.c',
   'va_compat.c',
-  'va_fool.c',
   'va_str.c',
   'va_trace.c',
 ]
@@ -39,6 +38,7 @@ libva_headers = [
   'va_fei_hevc.h',
   'va_enc_mpeg2.h',
   'va_enc_vp9.h',
+  'va_enc_av1.h',
   'va_str.h',
   'va_tpi.h',
   'va_prot.h',
@@ -46,9 +46,11 @@ libva_headers = [
   version_file,
 ]
 
+# headers that have be copied for subprojects
+libva_headers_subproject = []
+
 libva_headers_priv = [
   'sysdeps.h',
-  'va_fool.h',
   'va_internal.h',
   'va_trace.h',
 ]
@@ -88,6 +90,8 @@ if WITH_DRM
     'drm/va_drm.h',
   ]
 
+  libva_headers_subproject += libva_drm_headers
+
   libva_drm_headers_priv = [
     'drm/va_drm_auth.h',
     'drm/va_drm_auth_x11.h',
@@ -97,9 +101,10 @@ if WITH_DRM
   deps = [ libdrm_dep ]
 
   libva_drm_args = []
-  if get_option('with_x11') != 'no' and x11_dep.found()
+  if WITH_X11
     libva_drm_sources += [ 'drm/va_drm_auth_x11.c' ]
     libva_drm_args += [
+      '-DHAVE_VA_X11',
       '-DLIBVA_MAJOR_VERSION=@0@'.format(libva_major_version)
     ]
     deps += [ x11_dep ]
@@ -134,11 +139,14 @@ if WITH_X11
     'x11/va_x11.c',
   ]
 
-  libva_x11_headers = [
-    'va_x11.h',
+  libva_dri_headers = [
     'x11/va_dri2.h',
     'x11/va_dricommon.h',
   ]
+
+  libva_x11_headers = ['va_x11.h'] + libva_dri_headers
+
+  libva_headers_subproject += libva_dri_headers
 
   libva_x11_headers_priv = [
     'x11/va_dri2str.h',
@@ -178,6 +186,8 @@ if WITH_GLX
     'glx/va_glx.h',
   ]
 
+  libva_headers_subproject += libva_glx_headers
+
   libva_glx_headers_priv = [
     'glx/va_glx_impl.h',
     'glx/va_glx_private.h',
@@ -215,6 +225,8 @@ if WITH_WAYLAND
     'wayland/va_backend_wayland.h',
     'wayland/va_wayland.h',
   ]
+
+  libva_headers_subproject += libva_wayland_headers
 
   libva_wayland_headers_priv = [
     'wayland/va_wayland_drm.h',
@@ -256,3 +268,8 @@ if WITH_WAYLAND
     include_directories : configinc,
     dependencies : deps)
 endif
+
+fs = import('fs')
+foreach header : libva_headers_subproject
+  configure_file(output: fs.name(header), input: header, copy: true)
+endforeach

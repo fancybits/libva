@@ -32,44 +32,67 @@
 
 struct driver_name_map {
     const char *key;
-    int         key_len;
     const char *name;
 };
 
 static const struct driver_name_map g_driver_name_map[] = {
-    { "i915",       4, "iHD"    }, // Intel Media driver
-    { "i915",       4, "i965"   }, // Intel OTC GenX driver
-    { "pvrsrvkm",   8, "pvr"    }, // Intel UMG PVR driver
-    { "emgd",       4, "emgd"   }, // Intel ECG PVR driver
-    { "hybrid",     6, "hybrid" }, // Intel OTC Hybrid driver
-    { "nouveau",    7, "nouveau"  }, // Mesa Gallium driver
-    { "radeon",     6, "r600"     }, // Mesa Gallium driver
-    { "amdgpu",     6, "radeonsi" }, // Mesa Gallium driver
-    { NULL,         0, NULL }
+    { "i915",       "iHD"    }, // Intel Media driver
+    { "i915",       "i965"   }, // Intel OTC GenX driver
+    { "pvrsrvkm",   "pvr"    }, // Intel UMG PVR driver
+    { "radeon",     "r600"     }, // Mesa Gallium driver
+    { "amdgpu",     "radeonsi" }, // Mesa Gallium driver
+    { "nvidia-drm", "nvidia"   }, // NVIDIA driver
+    { NULL,         NULL }
 };
+
+static char *
+va_DRM_GetDrmDriverName(int fd)
+{
+    drmVersionPtr drm_version = drmGetVersion(fd);
+    char *driver_name;
+
+    if (!drm_version)
+        return NULL;
+
+    driver_name = strdup(drm_version->name);
+    drmFreeVersion(drm_version);
+
+    return driver_name;
+}
 
 /* Returns the VA driver candidate num for the active display*/
 VAStatus
 VA_DRM_GetNumCandidates(VADriverContextP ctx, int * num_candidates)
 {
     struct drm_state * const drm_state = ctx->drm_state;
-    drmVersionPtr drm_version;
     int count = 0;
     const struct driver_name_map *m = NULL;
+    char *driver_name;
+
     if (!drm_state || drm_state->fd < 0)
         return VA_STATUS_ERROR_INVALID_DISPLAY;
-    drm_version = drmGetVersion(drm_state->fd);
-    if (!drm_version)
+
+    driver_name = va_DRM_GetDrmDriverName(drm_state->fd);
+    if (!driver_name)
         return VA_STATUS_ERROR_UNKNOWN;
+
     for (m = g_driver_name_map; m->key != NULL; m++) {
-        if (drm_version->name_len >= m->key_len &&
-            strncmp(drm_version->name, m->key, m->key_len) == 0) {
+        if (strcmp(m->key, driver_name) == 0) {
             count ++;
         }
     }
-    drmFreeVersion(drm_version);
+
+    free(driver_name);
+
+    /*
+     * If the drm driver name does not have a mapped vaapi driver name, then
+     * assume they have the same name.
+     */
+    if (count == 0)
+        count = 1;
+
     *num_candidates = count;
-    return count ? VA_STATUS_SUCCESS : VA_STATUS_ERROR_UNKNOWN;
+    return VA_STATUS_SUCCESS;
 }
 
 /* Returns the VA driver name for the active display */
@@ -77,8 +100,6 @@ VAStatus
 VA_DRM_GetDriverName(VADriverContextP ctx, char **driver_name_ptr, int candidate_index)
 {
     struct drm_state * const drm_state = ctx->drm_state;
-    drmVersionPtr drm_version;
-    char *driver_name = NULL;
     const struct driver_name_map *m;
     int current_index = 0;
 
@@ -87,29 +108,32 @@ VA_DRM_GetDriverName(VADriverContextP ctx, char **driver_name_ptr, int candidate
     if (!drm_state || drm_state->fd < 0)
         return VA_STATUS_ERROR_INVALID_DISPLAY;
 
-    drm_version = drmGetVersion(drm_state->fd);
-    if (!drm_version)
+    *driver_name_ptr = va_DRM_GetDrmDriverName(drm_state->fd);
+    if (!*driver_name_ptr)
         return VA_STATUS_ERROR_UNKNOWN;
 
     for (m = g_driver_name_map; m->key != NULL; m++) {
-        if (drm_version->name_len >= m->key_len &&
-            strncmp(drm_version->name, m->key, m->key_len) == 0) {
+        if (strcmp(m->key, *driver_name_ptr) == 0) {
             if (current_index == candidate_index) {
                 break;
             }
             current_index ++;
         }
     }
-    drmFreeVersion(drm_version);
 
+    /*
+     * If the drm driver name does not have a mapped vaapi driver name, then
+     * assume they have the same name.
+     */
     if (!m->name)
-        return VA_STATUS_ERROR_UNKNOWN;
+        return VA_STATUS_SUCCESS;
 
-    driver_name = strdup(m->name);
-    if (!driver_name)
+    /* Use the mapped vaapi driver name */
+    free(*driver_name_ptr);
+    *driver_name_ptr = strdup(m->name);
+    if (!*driver_name_ptr)
         return VA_STATUS_ERROR_ALLOCATION_FAILED;
 
-    *driver_name_ptr = driver_name;
     return VA_STATUS_SUCCESS;
 }
 

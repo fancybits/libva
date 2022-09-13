@@ -33,7 +33,6 @@ LDADD = \
 libva_source_c = \
 	va.c			\
 	va_compat.c		\
-	va_fool.c		\
 	va_str.c		\
 	va_trace.c		\
 	$(NULL)
@@ -60,6 +59,7 @@ libva_source_h = \
 	va_enc_mpeg2.h		\
 	va_fei_hevc.h 		\
 	va_enc_vp9.h            \
+	va_enc_av1.h            \
 	va_str.h		\
 	va_tpi.h		\
 	va_version.h		\
@@ -69,7 +69,6 @@ libva_source_h = \
 
 libva_source_h_priv = \
 	sysdeps.h		\
-	va_fool.h		\
 	va_internal.h		\
 	va_trace.h		\
 	$(NULL)
@@ -83,9 +82,7 @@ libva_cflags = \
 	-Wall			\
 	$(NULL)
 
-if USE_SSP
-libva_cflags += -fstack-protector
-endif
+libva_cflags += $(SSP_CC_FLAG)
 
 lib_LTLIBRARIES			= libva.la
 libvaincludedir			= ${includedir}/va
