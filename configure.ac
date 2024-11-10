@@ -27,7 +27,7 @@
 # - reset micro version to zero when minor version is incremented
 # - reset minor version to zero when major version is incremented
 m4_define([va_api_major_version], [1])
-m4_define([va_api_minor_version], [16])
+m4_define([va_api_minor_version], [22])
 m4_define([va_api_micro_version], [0])
 
 m4_define([va_api_version],
@@ -75,7 +75,8 @@ m4_define([libva_lt_age],
           [m4_eval(libva_binary_age - libva_interface_age)])
 
 # libdrm minimun version requirement
-m4_define([libdrm_version], [2.4.60])
+# 2.4.75 for drmGetDevices2
+m4_define([libdrm_version], [2.4.75])
 
 # Wayland minimum version number
 # 1.11.0 for wl_proxy_create_wrapper
@@ -149,10 +150,20 @@ AC_ARG_ENABLE([wayland],
                     [build with VA/Wayland API support @<:@default=auto@:>@])],
     [], [enable_wayland="auto"])
 
-AC_ARG_ENABLE([va-messaging],
-    [AC_HELP_STRING([--enable-va-messaging],
-                    [build with va info and error messaging @<:@default=yes@:>@])],
-    [], [enable_va_messaging="yes"])
+AC_ARG_WITH(legacy,
+    [AC_HELP_STRING([--with-legacy=[[components]]],
+                    [build with legacy components @<:@default=emgd,nvctrl,fglrx@:>@])],
+    [], [with_legacy="emgd,nvctrl,fglrx"])
+
+if test "$with_legacy" = *emgd*; then
+    AC_DEFINE([HAVE_EMGD], [1], [Defined to 1 if EMGD is built])
+fi
+if test "$with_legacy" = *nvctrl*; then
+    AC_DEFINE([HAVE_NVCTRL], [1], [Defined to 1 if NVCTRL is built])
+fi
+if test "$with_legacy" = *fglrx*; then
+    AC_DEFINE([HAVE_FGLRX], [1], [Defined to 1 if FGLRX is built])
+fi
 
 AC_ARG_WITH(drivers-path,
     [AC_HELP_STRING([--with-drivers-path=[[path]]],
@@ -173,6 +184,9 @@ PKG_PROG_PKG_CONFIG
 AC_HEADER_STDC
 AC_SYS_LARGEFILE
 
+#check for secure_getenv
+AC_CHECK_FUNCS(secure_getenv)
+
 # Check for Doxygen
 if test "$enable_docs" = "yes"; then
     AC_CHECK_TOOL([DOXYGEN], [doxygen], [no])
@@ -181,33 +195,6 @@ if test "$enable_docs" = "yes"; then
     fi
 fi
 AM_CONDITIONAL(ENABLE_DOCS, test "$enable_docs" = "yes")
-
-# Check for va messaging
-if test "$enable_va_messaging" = "yes"; then
-    AC_DEFINE([ENABLE_VA_MESSAGING], [1], [Defined to 1 if va messaging is needed])
-fi
-
-# Check for __attribute__((visibility()))
-AC_CACHE_CHECK([whether __attribute__((visibility())) is supported],
-    ac_cv_have_gnuc_visibility_attribute,
-    [cat > conftest.c <<EOF
-int foo __attribute__ ((visibility ("hidden"))) = 1;
-int bar __attribute__ ((visibility ("protected"))) = 1;
-EOF
-    ac_cv_have_gnuc_visibility_attribute="no"
-    if ${CC-cc} -Werror -S conftest.c -o conftest.s >/dev/null 2>&1; then
-        if grep '\.hidden.*foo' conftest.s >/dev/null; then
-            if grep '\.protected.*bar' conftest.s >/dev/null; then
-                ac_cv_have_gnuc_visibility_attribute="yes"
-            fi
-        fi
-    fi
-    rm -f conftest.[cs]
-])
-if test "$ac_cv_have_gnuc_visibility_attribute" = "yes"; then
-    AC_DEFINE([HAVE_GNUC_VISIBILITY_ATTRIBUTE], [1],
-              [Defined to 1 if GCC visibility attribute is supported])
-fi
 
 # Check for -ldl (often not required)
 AC_SEARCH_LIBS([dlopen], [dl], [], [
@@ -270,7 +257,7 @@ AM_CONDITIONAL(USE_DRM, test "$USE_DRM" = "yes")
 # Check for X11
 USE_X11="no"
 if test "x$enable_x11" != "xno"; then
-    PKG_CHECK_MODULES([X11],    [x11 xext xfixes],    [USE_X11="yes"], [:])
+    PKG_CHECK_MODULES([X11],    [x11 xext xfixes x11-xcb xcb xcb-dri3],    [USE_X11="yes"], [:])
 
     if test "x$USE_X11" = "xno" -a "x$enable_x11" = "xyes"; then
        AC_MSG_ERROR([VA/X11 explicitly enabled, however $X11_PKG_ERRORS])
@@ -325,11 +312,15 @@ if test "x$enable_wayland" != "xno"; then
 
     if test "$USE_WAYLAND" = "yes"; then
 
-        WAYLAND_PREFIX=`$PKG_CONFIG --variable=prefix wayland-client`
-        AC_PATH_PROG([WAYLAND_SCANNER], [wayland-scanner],,
-                     [${WAYLAND_PREFIX}/bin$PATH_SEPARATOR$PATH])
+        AC_PATH_PROG([WAYLAND_SCANNER], [wayland-scanner])
         if test "x$WAYLAND_SCANNER" = "x"; then
-            AC_MSG_ERROR([wayland-scanner not found: Install it or use --disable-wayland])
+            PKG_CHECK_MODULES([WL_SCANNER], [wayland-scanner >= 1.15],
+                [USE_WAYLAND="yes"], [:])
+
+            if test "x$USE_WAYLAND" = "xno" -a "x$enable_wayland" = "xyes"; then
+                AC_MSG_ERROR([wayland explicitly enabled, however $WL_SCANNER_PKG_ERRORS])
+            fi
+            AC_SUBST(WAYLAND_SCANNER, `$PKG_CONFIG --variable=wayland_scanner wayland-scanner`)
         fi
 
         AC_DEFINE([HAVE_VA_WAYLAND], [1],
@@ -377,6 +368,6 @@ echo
 echo Installation prefix .............. : $prefix
 echo Default driver path .............. : $LIBVA_DRIVERS_PATH
 echo Extra window systems ............. : $BACKENDS
+echo Build with legacy ................ : $with_legacy
 echo Build documentation .............. : $enable_docs
-echo Build with messaging ............. : $enable_va_messaging
 echo

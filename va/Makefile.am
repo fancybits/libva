@@ -48,6 +48,7 @@ libva_source_h = \
 	va_dec_jpeg.h		\
 	va_dec_vp8.h		\
 	va_dec_vp9.h		\
+	va_dec_vvc.h		\
 	va_drmcommon.h		\
 	va_egl.h		\
 	va_enc_hevc.h		\
@@ -149,4 +150,5 @@ EXTRA_DIST = \
 	libva.syms		\
 	va_version.h.in		\
 	meson.build		\
+        libva.def               \
 	$(NULL)

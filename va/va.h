@@ -120,12 +120,13 @@ extern "C" {
  *  - \ref api_enc_vp8
  *  - \ref api_enc_vp9
  *  - \ref api_enc_av1
- * - Decoder (HEVC, JPEG, VP8, VP9, AV1)
+ * - Decoder (HEVC, JPEG, VP8, VP9, AV1, VVC)
  *      - \ref api_dec_hevc
  *      - \ref api_dec_jpeg
  *      - \ref api_dec_vp8
  *      - \ref api_dec_vp9
  *      - \ref api_dec_av1
+ *      - \ref api_dec_vvc
  * - \ref api_vpp
  * - \ref api_prot
  * - FEI (H264, HEVC)
@@ -305,7 +306,7 @@ typedef int VAStatus;   /** Return status type from functions */
 #define VA_STATUS_ERROR_NOT_ENOUGH_BUFFER       0x00000025
 /** \brief Indicate an operation isn't completed because time-out interval elapsed. */
 #define VA_STATUS_ERROR_TIMEDOUT                0x00000026
-#define VA_STATUS_ERROR_UNKNOWN         0xFFFFFFFF
+#define VA_STATUS_ERROR_UNKNOWN                 0xFFFFFFFF
 
 /**
  * 1. De-interlacing flags for vaPutSurface()
@@ -401,6 +402,7 @@ typedef int VAStatus;   /** Return status type from functions */
  */
 const char *vaErrorStr(VAStatus error_status);
 
+/** \brief Structure to describe rectangle. */
 typedef struct _VARectangle {
     int16_t x;
     int16_t y;
@@ -410,12 +412,18 @@ typedef struct _VARectangle {
 
 /** \brief Generic motion vector data structure. */
 typedef struct _VAMotionVector {
-    /** \mv0[0]: horizontal motion vector for past reference */
-    /** \mv0[1]: vertical motion vector for past reference */
-    /** \mv1[0]: horizontal motion vector for future reference */
-    /** \mv1[1]: vertical motion vector for future reference */
-    int16_t  mv0[2];  /* past reference */
-    int16_t  mv1[2];  /* future reference */
+    /** \brief Past reference
+     *
+     * - \c [0]: horizontal motion vector for past reference
+     * - \c [1]: vertical motion vector for past reference
+     */
+    int16_t  mv0[2];
+    /** \brief Future reference
+     *
+     * - \c [0]: horizontal motion vector for future reference
+     * - \c [1]: vertical motion vector for future reference
+     */
+    int16_t  mv1[2];
 } VAMotionVector;
 
 /** Type of a message callback, used for both error and info log. */
@@ -530,7 +538,10 @@ typedef enum {
     VAProfileAV1Profile1                = 33,
     VAProfileHEVCSccMain444_10          = 34,
     /** \brief Profile ID used for protected video playback. */
-    VAProfileProtected                  = 35
+    VAProfileProtected                  = 35,
+    VAProfileH264High10                 = 36,
+    VAProfileVVCMain10                  = 37,
+    VAProfileVVCMultilayerMain10        = 38
 } VAProfile;
 
 /**
@@ -661,8 +672,8 @@ typedef enum {
      * at vaBeginPicture() time refers to the decode output surface.  The
      * target surface for the output of processing needs to be a different
      * surface since the decode process requires the original reconstructed buffer.
-     * The “surface” member of VAProcPipelineParameterBuffer should be set to the
-     * same as “render_target” set in vaBeginPicture(), but the driver may choose
+     * The "surface" member of VAProcPipelineParameterBuffer should be set to the
+     * same as "render_target" set in vaBeginPicture(), but the driver may choose
      * to ignore this parameter.
      */
     VAConfigAttribDecProcessing     = 8,
@@ -1028,6 +1039,20 @@ typedef enum {
      * The value returned uses the VAConfigAttribValEncPerBlockControl type.
      */
     VAConfigAttribEncPerBlockControl    = 55,
+    /**
+     * \brief Maximum number of tile rows. Read-only.
+     *
+     * This attribute determines the maximum number of tile
+     * rows supported for encoding with tile support.
+     */
+    VAConfigAttribEncMaxTileRows        = 56,
+    /**
+     * \brief Maximum number of tile cols. Read-only.
+     *
+     * This attribute determines the maximum number of tile
+     * columns supported for encoding with tile support.
+     */
+    VAConfigAttribEncMaxTileCols        = 57,
     /**@}*/
     VAConfigAttribTypeMax
 } VAConfigAttribType;
@@ -1143,8 +1168,10 @@ typedef union _VAConfigAttribValDecJPEG {
     struct {
         /** \brief Set to (1 << VA_ROTATION_xxx) for supported rotation angles. */
         uint32_t rotation : 4;
+        /** \brief set to 1 for crop and partial decode support, 0 if not supported */
+        uint32_t crop : 1;
         /** \brief Reserved for future use. */
-        uint32_t reserved : 28;
+        uint32_t reserved : 27;
     } bits;
     uint32_t value;
 } VAConfigAttribValDecJPEG;
@@ -1675,6 +1702,15 @@ typedef enum {
      * when importing an existing buffer.
      */
     VASurfaceAttribDRMFormatModifiers,
+    /** \brief width and height log2 aligment in pixels (int, read-only)
+     *
+     * For special HW requirement used in some codecs, if
+     * VASurfaceAttribAlignmentSize is not implemented in the driver, then
+     * the surface_width and surface_height should keep the original logic
+     * without any modification, this is an add-on requirement to
+     * surface_width and surface_height.
+     */
+    VASurfaceAttribAlignmentSize,
     /** \brief Number of surface attributes. */
     VASurfaceAttribCount
 } VASurfaceAttribType;
@@ -1691,9 +1727,9 @@ typedef struct _VASurfaceAttrib {
 
 /**
  * @name VASurfaceAttribMemoryType values in bit fields.
- * Bit 0:7 are reserved for generic types, Bit 31:28 are reserved for
- * Linux DRM, Bit 23:20 are reserved for Android. DRM and Android specific
- * types are defined in DRM and Android header files.
+ * Bits 0:7 are reserved for generic types. Bits 31:28 are reserved for
+ * Linux DRM. Bits 23:20 are reserved for Android. Bits 19:16 are reserved for Win32.
+ * DRM, Android and Win32 specific types are defined in respective va_*.h header files.
  */
 /**@{*/
 /** \brief VA memory type (default) is supported. */
@@ -1703,6 +1739,20 @@ typedef struct _VASurfaceAttrib {
 /** \brief User pointer memory type is supported. */
 #define VA_SURFACE_ATTRIB_MEM_TYPE_USER_PTR     0x00000004
 /**@}*/
+/**
+ * \brief VASurfaceAttribAlignmentStruct structure for
+ * the VASurfaceAttribAlignmentSize attribute.
+ */
+typedef union _VASurfaceAttribAlignmentStruct {
+    struct {
+        /** \brief log2 width aligment */
+        uint32_t log2_width_alignment  : 4;
+        /** \brief log2 height aligment */
+        uint32_t log2_height_alignment : 4;
+        uint32_t reserved              : 24;
+    } bits;
+    uint32_t value;
+} VASurfaceAttribAlignmentStruct;
 
 /**
  * \brief VASurfaceAttribExternalBuffers structure for
@@ -1770,7 +1820,7 @@ typedef struct _VASurfaceAttribExternalBuffers {
  * \brief Queries surface attributes for the supplied config.
  *
  * This function queries for all supported attributes for the
- * supplied VA @config. In particular, if the underlying hardware
+ * supplied VA \c config. In particular, if the underlying hardware
  * supports the creation of VA surfaces in various formats, then
  * this function will enumerate all pixel formats that are supported.
  *
@@ -2101,6 +2151,37 @@ typedef enum {
      * must be quried from \c VAConfigAttribValEncPerBlockControl.
      */
     VAEncDeltaQpPerBlockBufferType   = 61,
+
+    /**
+     * \brief VVC ALF data buffer
+     *
+     * Refer to \c VAAlfDataVVC
+     */
+    VAAlfBufferType = 62,
+    /**
+     * \brief VVC LMCS data buffer
+     *
+     * Refer to \c VALmcsDataVVC
+     */
+    VALmcsBufferType = 63,
+    /**
+     * \brief VVC SubPic data buffer
+     *
+     * Refer to \c VASubPicVVC
+     */
+    VASubPicBufferType = 64,
+    /**
+     * \brief VVC Tile Dimension data buffer
+     *
+     * Data buffer of tile widths and heights, with each element formatted as uint16_t
+     */
+    VATileBufferType = 65,
+    /**
+     * \brief VVC Slice Structure data buffer
+     *
+     * Refer to \c VASliceStructVVC
+     */
+    VASliceStructBufferType = 66,
 
     VABufferTypeMax
 } VABufferType;
@@ -3871,6 +3952,28 @@ VAStatus vaMapBuffer(
 );
 
 /**
+ * Map data store of the buffer into the client's address space
+ * this interface could be used to convey the operation hint
+ * backend driver could use these hint to optimize the implementations
+ */
+
+/** \brief VA_MAPBUFFER_FLAG_DEFAULT is used when there are no flag specified
+ * same as VA_MAPBUFFER_FLAG_READ | VA_MAPBUFFER_FLAG_WRITE.
+ */
+#define VA_MAPBUFFER_FLAG_DEFAULT 0
+/** \brief application will read the surface after map */
+#define VA_MAPBUFFER_FLAG_READ    1
+/** \brief application will write the surface after map */
+#define VA_MAPBUFFER_FLAG_WRITE   2
+
+VAStatus vaMapBuffer2(
+    VADisplay dpy,
+    VABufferID buf_id,  /* in */
+    void **pbuf,        /* out */
+    uint32_t flags      /* in */
+);
+
+/**
  * After client making changes to a mapped data store, it needs to
  * "Unmap" it to let the server know that the data is ready to be
  * consumed by the server
@@ -4197,6 +4300,7 @@ VAStatus vaQuerySurfaceStatus(
 typedef enum {
     VADecodeSliceMissing            = 0,
     VADecodeMBError                 = 1,
+    VADecodeReset                   = 2,
 } VADecodeErrorType;
 
 /**
@@ -4216,9 +4320,15 @@ typedef struct _VASurfaceDecodeMBErrors {
 /**
  * After the application gets VA_STATUS_ERROR_DECODING_ERROR after calling vaSyncSurface(),
  * it can call vaQuerySurfaceError to find out further details on the particular error.
- * VA_STATUS_ERROR_DECODING_ERROR should be passed in as "error_status",
- * upon the return, error_info will point to an array of _VASurfaceDecodeMBErrors structure,
- * which is allocated and filled by libVA with detailed information on the missing or error macroblocks.
+ * VA_STATUS_ERROR_DECODING_ERROR should be passed in as "error_status".
+ *
+ * After the applications get VA_STATUS_HW_BUSY or VA_STATUS_SUCCESSFULL from vaSyncSurface(),
+ * it still can call vaQuerySurfaceError to find out further details to know if has real hw reset
+ * happened on this surface since umd and kmd could recover the context from reset with success in sometimes.
+ * VA_STATUS_HW_BUSY or VA_STATUS_SUCCESSFULL also could be passed in as "error_status".
+ *
+ * Upon the return, error_info will point to an array of _VASurfaceDecodeMBErrors structure,
+ * which is allocated and filled by libVA with detailed information on the VADecodeErrorType.
  * The array is terminated if "status==-1" is detected.
  */
 VAStatus vaQuerySurfaceError(
@@ -4566,6 +4676,11 @@ VAStatus vaSyncBuffer(
  * Four bytes per pixel: X, Y, U, V.
  */
 #define VA_FOURCC_XYUV          0x56555958
+/** Q416: three-plane 16-bit YUV 4:4:4.
+ *
+ * The three planes contain Y, U and V respectively.
+ */
+#define VA_FOURCC_Q416          0x36313451
 
 /* byte order */
 #define VA_LSB_FIRST        1
@@ -5202,6 +5317,43 @@ typedef struct _VAPictureHEVC {
  */
 #define VA_PICTURE_HEVC_RPS_LT_CURR             0x00000040
 
+/****************************
+ * VVC data structures
+ ****************************/
+/**
+ * \brief Description of picture properties of those in DPB surfaces.
+ *
+ * Only progressive scan is supported, each surface contains one whole
+ * frame picture.
+ */
+
+typedef struct _VAPictureVVC {
+    /** \brief reconstructed picture buffer surface index
+     * invalid when taking value VA_INVALID_SURFACE.
+     */
+    VASurfaceID             picture_id;
+
+    /** \brief picture order count. */
+    int32_t                 pic_order_cnt;
+
+    /* described below */
+    uint32_t                flags;
+
+    /** \brief Reserved bytes for future use, must be zero */
+    uint32_t                va_reserved[VA_PADDING_LOW];
+} VAPictureVVC;
+
+/* flags in VAPictureVVC could be OR of the following */
+#define VA_PICTURE_VVC_INVALID                  0x00000001
+/** \brief Long term reference picture */
+#define VA_PICTURE_VVC_LONG_TERM_REFERENCE      0x00000002
+/** \brief Unavailable reference picture
+ * This flag indicates the situation that the process of
+ * "generating unavailable reference pictures" (spec section 8.3.4)
+ * is required.
+ */
+#define VA_PICTURE_VVC_UNAVAILABLE_REFERENCE    0x00000004
+
 typedef enum {
     VACopyObjectSurface = 0,
     VACopyObjectBuffer  = 1,
@@ -5247,6 +5399,7 @@ VAStatus vaCopy(VADisplay dpy, VACopyObject * dst, VACopyObject * src, VACopyOpt
 #include <va/va_dec_vp8.h>
 #include <va/va_dec_vp9.h>
 #include <va/va_dec_av1.h>
+#include <va/va_dec_vvc.h>
 #include <va/va_enc_hevc.h>
 #include <va/va_fei_hevc.h>
 #include <va/va_enc_h264.h>

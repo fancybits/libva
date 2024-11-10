@@ -249,7 +249,10 @@ typedef struct  _VAEncSequenceParameterBufferAV1 {
      */
     uint8_t     seq_tier;
 
-    uint8_t     reserved8b;
+    /** \brief Indicates whether or not the encoding is in dyadic hierarchical GOP structure.
+     *  value range [0..1].
+     */
+    uint8_t     hierarchical_flag;
 
     /** \brief Period between intra_only frames. */
     uint32_t    intra_period;
@@ -311,8 +314,10 @@ typedef struct  _VAEncSequenceParameterBufferAV1 {
             uint32_t    subsampling_x                               : 1;
             /** \brief Corresponds to AV1 syntax element of the same name. */
             uint32_t    subsampling_y                               : 1;
+            /** \brief Corresponds to AV1 syntax element of the same name. */
+            uint32_t    mono_chrome                                 : 1;
             /** \brief Reserved bytes for future use, must be zero. */
-            uint32_t    reserved_bits                               : 13;
+            uint32_t    reserved_bits                               : 12;
         } bits;
         uint32_t value;
     } seq_fields;
@@ -428,7 +433,7 @@ typedef struct _VAEncSegMapBufferAV1 {
     /**
      * \brief Segment map.
      * Size of this map is indicated by \ref segmentMapDataSize and each element
-	 * in this map contains the segment id of a particular block.
+     * in this map contains the segment id of a particular block.
      * The element is indexed by raster scan order.
      * The value of each entry should be in the range [0..7], inclusive.
      */
@@ -448,7 +453,7 @@ typedef enum {
     VAAV1EncTransformationCount
 } VAEncTransformationTypeAV1;
 
-typedef struct _VAEncWarpedMotionParamsAV1{
+typedef struct _VAEncWarpedMotionParamsAV1 {
 
     /** \brief Specify the type of warped motion. */
     VAEncTransformationTypeAV1  wmtype;
@@ -479,8 +484,7 @@ typedef struct _VAEncWarpedMotionParamsAV1{
  *
  */
 typedef union {
-	struct
-	{
+    struct {
         /**
          * \brief Value used as index into ref_frame_idx[] to indicate that frame
          * will be included in the reference list.
@@ -526,8 +530,8 @@ typedef union {
 
         /** \brief Reserved bytes for future use, must be zero. */
         uint32_t Reserved    : 11;
-	} fields;
-	uint32_t value;
+    } fields;
+    uint32_t value;
 } VARefFrameCtrlAV1;
 
 /**
@@ -536,8 +540,7 @@ typedef union {
  * This structure conveys picture level parameters.
  *
  */
-typedef struct  _VAEncPictureParameterBufferAV1
-{
+typedef struct  _VAEncPictureParameterBufferAV1 {
     /** \brief AV1 encoder may support SupRes and dynamic scaling function.
      *  For SupRes, underline encoder is responsible to do downscaling.
      *  For dynamic scaling, app should provide the scaled raw source.
@@ -581,7 +584,11 @@ typedef struct  _VAEncPictureParameterBufferAV1
      */
     uint8_t     ref_frame_idx[7];
 
-    uint8_t     reserved8bits0;
+    /** \brief When hierarchical_level_plus1 > 0, hierarchical_level_plus1-1 indicates
+     *  the current frame's level. If VAEncMiscParameterTemporalLayerStructure
+     *  is valid (number_of_layers >0), hierarchical_level_plus1 shouldn't larger than number_of_layers.
+     */
+    uint8_t     hierarchical_level_plus1;
 
     /** \brief primary reference frame.
      *  Index into reference_frames[]
@@ -597,6 +604,7 @@ typedef struct  _VAEncPictureParameterBufferAV1
     /** \brief Corresponds to AV1 syntax element of the same name. */
     uint8_t     refresh_frame_flags;
 
+    /** \brief Reserved bytes for future use, must be zero. */
     uint8_t     reserved8bits1;
 
     /** \brief Suggest which frames to be used as references.
@@ -648,8 +656,12 @@ typedef struct  _VAEncPictureParameterBufferAV1
              * Otherwise disable palette encoding.
              */
             uint32_t    palette_mode_enable             : 1;
+            /** \brief Corresponds to AV1 syntax element of the same name. */
+            uint32_t    allow_screen_content_tools      : 1;
+            /** \brief Corresponds to AV1 syntax element of the same name. */
+            uint32_t    force_integer_mv                : 1;
             /** \brief Reserved bytes for future use, must be zero. */
-            uint32_t    reserved                        : 18;
+            uint32_t    reserved                        : 16;
         } bits;
         uint32_t value;
     } picture_flags;
@@ -743,6 +755,7 @@ typedef struct  _VAEncPictureParameterBufferAV1
         uint16_t    value;
     } qmatrix_flags;
 
+    /** \brief Reserved bytes for future use, must be zero. */
     uint16_t reserved16bits1;
 
     union {
@@ -799,6 +812,7 @@ typedef struct  _VAEncPictureParameterBufferAV1
     /** \brief Number of tile rows. */
     uint8_t     tile_rows;
 
+    /** \brief Reserved bytes for future use, must be zero. */
     uint16_t    reserved16bits2;
 
     /** \brief The last tile column or row size needs to be derived. */
@@ -902,7 +916,8 @@ typedef struct  _VAEncPictureParameterBufferAV1
      *  underline encoder. Otherwise, app can set it to 0 and ignored by driver.
      *
      *  In BRC mode, obu_size needs to be updated and this parameter should be set.
-     *  In CQP mode, this parameter should be set to 0 and ignored by driver.
+     *  In CQP mode, obu_size needs to be updated if \c enable_frame_obu == 1. Otherwise
+     *  this parameter should be set to 0 and ignored by driver.
      */
     uint32_t    byte_offset_frame_hdr_obu_size;
 
@@ -951,6 +966,7 @@ typedef struct  _VAEncPictureParameterBufferAV1
      */
     uint8_t     number_skip_frames;
 
+    /** \brief Reserved bytes for future use, must be zero. */
     uint16_t    reserved16bits3;
 
     /** \brief Indicates the application forced frame size change in bytes.

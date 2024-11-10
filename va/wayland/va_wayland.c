@@ -27,6 +27,7 @@
 #include "sysdeps.h"
 #include <stdarg.h>
 #include "va_wayland.h"
+#include "va_wayland_linux_dmabuf.h"
 #include "va_wayland_drm.h"
 #include "va_wayland_emgd.h"
 #include "va_wayland_private.h"
@@ -52,15 +53,6 @@ va_wayland_error(const char *format, ...)
     vfprintf(stderr, format, args);
     fprintf(stderr, "\n");
     va_end(args);
-}
-
-static int
-va_DisplayContextIsValid(VADisplayContextP pDisplayContext)
-{
-    VADriverContextP const pDriverContext = pDisplayContext->pDriverContext;
-
-    return (pDriverContext &&
-            pDriverContext->display_type == VA_DISPLAY_WAYLAND);
 }
 
 static void
@@ -89,13 +81,6 @@ va_DisplayContextDestroy(VADisplayContextP pDisplayContext)
     free(pDisplayContext);
 }
 
-static VAStatus
-va_DisplayContextGetDriverName(VADisplayContextP pDisplayContext, char **name)
-{
-    *name = NULL;
-    return VA_STATUS_ERROR_UNKNOWN;
-}
-
 /* -------------------------------------------------------------------------- */
 /* --- Public interface                                                   --- */
 /* -------------------------------------------------------------------------- */
@@ -107,13 +92,19 @@ struct va_wayland_backend {
 
 static const struct va_wayland_backend g_backends[] = {
     {
+        va_wayland_linux_dmabuf_create,
+        va_wayland_linux_dmabuf_destroy
+    },
+    {
         va_wayland_drm_create,
         va_wayland_drm_destroy
     },
+#ifdef HAVE_EMGD
     {
         va_wayland_emgd_create,
         va_wayland_emgd_destroy
     },
+#endif
     { NULL, }
 };
 
@@ -129,9 +120,7 @@ vaGetDisplayWl(struct wl_display *display)
     if (!pDisplayContext)
         return NULL;
 
-    pDisplayContext->vaIsValid          = va_DisplayContextIsValid;
     pDisplayContext->vaDestroy          = va_DisplayContextDestroy;
-    pDisplayContext->vaGetDriverName    = va_DisplayContextGetDriverName;
 
     pDriverContext = va_newDriverContext(pDisplayContext);
     if (!pDriverContext)
@@ -149,11 +138,9 @@ vaGetDisplayWl(struct wl_display *display)
 
     for (i = 0; g_backends[i].create != NULL; i++) {
         if (g_backends[i].create(pDisplayContext))
-            break;
+            return (VADisplay)pDisplayContext;
         g_backends[i].destroy(pDisplayContext);
     }
-
-    return (VADisplay)pDisplayContext;
 
 error:
     va_DisplayContextDestroy(pDisplayContext);
